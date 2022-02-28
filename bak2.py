@@ -27,68 +27,41 @@ wbfile='test.xlsm'
 wb1=openpyxl.load_workbook(wbfile)
 wb2=openpyxl.Workbook()
 
-sheets1=wb1.get_sheet_names()#获取sheet页
-sheet1=wb1.get_sheet_by_name(sheets1[-5])
-sheets2=wb2.get_sheet_names()
-sheet2=wb2.get_sheet_by_name(sheets2[0])
-sheet3=wb2.get_sheet_by_name(sheets2[1])
+wbn1=wb1.get_sheet_names()#获取sheet页
+wbs1=wb1.get_sheet_by_name(wbn1[-5])
+wbn2=wb2.get_sheet_names()
+wbs2=wb2.get_sheet_by_name(wbn2[0])
 
-max_row=sheet1.max_row#最大行数
-max_column=sheet1.max_column#最大列数
-
-exit
-
-for r in range(1, 1+51):
-    for c in range(1, 1+max_column):
-        sheet2.cell(row=r, column=c).value = sheet1.cell(row=r, column=c).value
+maxr=wbs1.max_row    #最大行数
+maxc=wbs1.max_column  #最大列数
 
 
-sheet1a=wb1.get_sheet_by_name(sheets1[-5])
-sheet1b=wb1.get_sheet_by_name(sheets1[-6])
-a=sheet1a.cell(row=53, column=7).value
-b=sheet1b.cell(row=53, column=7).value
-#sheet2.cell(row=53, column=7).value = a/b
-sheet2.cell(row=53, column=7).value = '{:.2%}'.format(a/b)
-
-#db=[]
-d3=0
-#max_column=7+5
-#max_row=53+10
-#db=[[0 for i in range(53,1+max_row)]for i in range(7,1+max_column)]
-db=[[None for i in range(1+max_row)]for i in range(1+max_column)]
-for c in range(7, 1+max_column):
-	for r in range(53, 1+max_row):
-		d1=sheet1a.cell(row=r,column=c).value
-		d2=sheet1b.cell(row=r,column=c).value
-		if d1 is not None and d2 is not None :
-			if d2 !=0 :
-				d3 = '{:.2%}'.format(d1/d2) 
-				sheet2.cell(row=r, column=c).value = d3 
-#				print(d3)
-				db[c][r] = d3
-#				db[c-7][r-53].append(d3)
+#db1=[]
+db1=[["" for i in range(1+maxr)]for i in range(1+maxc)]
+#val1=''
+for c in range(1,1+maxc):
+	for r in range(1,1+maxr):
+		val = wbs1.cell(row=r,column=c).value
+#		if val is not None
+#        db1[c][r] = wbs1.cell(row=r, column=c).value
+#		db1[c][r] = [val if val is not None else ""]
+		db1[c][r] = (val if val is not None else '')
 
 
+for c in range(1,1+maxc):
+	for r in range(1,1+maxr):
+		wbs2.cell(row=r,column=c).value=db1[c][r]
+#		wbs2.cell(row=r,column=c).value=str(db1[c][r])
+#		wbs2.cell(row=r,column=c)=db1[c][r]
 
-
-#                sheet2.cell(row=r, column=c).value = data 
-
-
-
-
+#x=str(db1[1][1])
+x=db1[1][1]
+#x=db1[1]
+wbs2.cell(row=1,column=1).value=x
 wb2.save('test2.xlsx')
-x=db
-#x=q.db
-#x=q.wb2db(wbfile)
 
-## ==========
+print("dir x :\n ",dir(x))
+print("x type is:\n ",type(x))
+print("x is:\n ",x)
+exit(0)
 
-## ==========
-
-
-print(dir(x))
-print(type(x))
-print(x)
-
-
-wbfile='data2.xlsx'
