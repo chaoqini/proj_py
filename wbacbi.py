@@ -28,13 +28,32 @@ def pt(x,display=1,fexit=0):
     if fexit!=0: exit(0)
     return x
 
+
+def readsheet(file='',num_sheet=0):
+    wb=openpyxl.load_workbook(file)
+    wbs=wb.worksheets[num_sheet]
+    marc=wbs.max_column
+    marr=wbs.max_row
+    db=[['' for i in range(1+maxr)]for i in range(1+maxc)]
+    for x in range(maxc):
+        for y in range(maxr):
+            val=wbs.cell(column=y+1,row=x+1).value
+            db[x+1][y+1]=(val if val is not None else '')
+    return db
+
+
+
+
+
 #wbfile='data1.xlsx'
 #wbfile='/home/qc/download/2201-06-PM_VA05A_HTDR_Result_500hrs_20220216.xlsm'
-#wbfile1='test1.xlsx'
+#wbf_test1='test1.xlsx'
+wbf_test1='test.xlsm'
 wbfile1='data1.xlsx'
 wb1=openpyxl.load_workbook(wbfile1)
 wbfile2='test2.xlsx'
 wb2=openpyxl.load_workbook(wbfile2)
+wb_test1=openpyxl.load_workbook(wbf_test1)
 #wb2=openpyxl.Workbook()
 #wbn1=wb1.get_sheet_names()#获取sheet页
 #wbs1=wb1.get_sheet_by_name(wbn1[-5])
@@ -42,11 +61,17 @@ wb2=openpyxl.load_workbook(wbfile2)
 #wbs2=wb2.get_sheet_by_name(wbn2[0])
 wb1s1=wb1.worksheets[2]
 wb2s1=wb2.worksheets[0]
+#wbts1=wb_test1.worksheets[-5]
+wbts1=openpyxl.load_workbook(wbf_test1).worksheets[-5]
 maxr=wb1s1.max_row    #最大行数
 maxc=wb1s1.max_column  #最大列数
 #pt(maxr)
 #pt(maxc)
+pt(wbts1.title)
 #pt(wb1s1.title)
+db=readsheet(wbf_test1,-5)
+pt(db)
+exit(0)
 #x=wb1s1.cell(row=1,column=1).value
 #db1=[]
 db1=[['' for i in range(1+maxr)]for i in range(1+maxc)]
@@ -75,6 +100,9 @@ for c in range(3,maxc+1):
 #    mean=np.mean(data)
 #    db1[c].append(db1[c][48])
     if data!=[] :
+        db1[c].append('')
+        db1[c].append(db1[c][1])
+        db1[c].append(db1[c][2])
         db1[c].append(np.mean(data))
         db1[c].append(np.std(data))
         db1[c].append(max(data))
