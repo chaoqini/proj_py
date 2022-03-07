@@ -29,20 +29,45 @@ def pt(x,display=1,fexit=0):
     return x
 
 
-def readsheet(file='',num_sheet=0):
-    wb=openpyxl.load_workbook(file)
+
+def wbread(wb_obj=None,num_sheet=0,wb_path=''):
+    if wb_obj==None: wb=openpyxl.load_workbook(wb_path)
+    else: wb=wb_obj
     wbs=wb.worksheets[num_sheet]
-    marc=wbs.max_column
-    marr=wbs.max_row
+    maxc=wbs.max_column
+    maxr=wbs.max_row
     db=[['' for i in range(1+maxr)]for i in range(1+maxc)]
     for x in range(maxc):
         for y in range(maxr):
-            val=wbs.cell(column=y+1,row=x+1).value
+            val=wbs.cell(column=x+1,row=y+1).value
             db[x+1][y+1]=(val if val is not None else '')
     return db
 
+def wbwrite(db=[],num_sheet=0,wb_path='tmp.xlsx'):
+    from openpyxl import Workbook
+    wb=Workbook() 
+    wbs=wb.worksheets[num_sheet]
+    for x in range(1,len(db)):
+        for y in range(1,len(db[x])):
+            wbs.cell(column=x,row=y).value=db1[x][y]
+    wb.save(wb_path)
+    return wbs.title
 
-
+wbp1='data1.xlsx'
+#wbp2='test3.xlsx'
+wb1=openpyxl.load_workbook(wbp1)
+#wb2=openpyxl.load_workbook(wbp2)
+db1=wbread(wb1,2)
+#pt(len(db1[0]))
+#wbs1=wb1.worksheets[0]
+#pt(wbs1.max_row)
+#pt(wbs1.title)
+#pt(wb2.properties)
+#x=wbread(wb_test1,0)
+#pt(db1)
+y=wbwrite(db1)
+pt(y)
+exit(0)
 
 
 #wbfile='data1.xlsx'
