@@ -1,11 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#import openpyxl
+import openpyxl
 import numpy as np 
-import pandas as pd
 from matplotlib import pyplot as plt 
 
+#class wbacbi:
+#    def __init__(self,wbfile):
+#        self.wbfile=wbfile
+#        self.db=[]
+#        self.nrowsPreData=5
+#        self.unitIndex=1
+#        self.wb2db(wbfile)
+
+#    def wb2db(self,wbfile):
+#        wb=openpyxl.load_workbook(wbfile)
+
+#def g(x)->str:
+#    for k,v in locals().items():
+#        if v is x:
+#            return k
 
 def pt(x,display=1,fexit=0):
     print("dir is:\n",dir(x))
@@ -13,57 +27,6 @@ def pt(x,display=1,fexit=0):
     if display==1: print("variable is:\n",x)
     if fexit!=0: exit(0)
     return x
-
-##file='dt2.xlsx'
-#file='test.xlsm'
-file='dt1.xlsx'
-dfn5=pd.read_excel(file,sheet_name=-5)
-dfn6=pd.read_excel(file,sheet_name=-6)
-#data=wb.head()
-#pt(wb)
-#pt(wb.shape)
-#pt(wb.describe)
-#pt(wb.info)
-#wb.to_excel('tmp.xlsx')
-#da=wb[46:]
-#da=da.iloc[:,4:]
-#da=wb.iloc[46:,5:]
-#df2.loc[len(df2)]=['a','b','c']
-#df3=df2.iloc[46:50,:]
-#df3=df2.iloc[46:50]
-#df2.append(df3)
-#df4=pd.concat([df2,df3])
-df1=dfn6.iloc[51:,6:]
-df2=dfn5.iloc[51:,6:]
-#pt(df5.head())
-#for i in df5:
-#df7=pd.DataFrame()
-dfp=dfn5.iloc[48-2:51-1,7-1:]
-dfo=df2
-#pt(df6.shape[1])
-#for i in df5.iteritems():
-for x in range(df1.shape[0]):
-    for y in range(df1.shape[1]):
-#        print(df5.iloc[y,x])
-#        print(df6.iloc[y,x])
-        d1=df1.iloc[x,y]
-        d2=df2.iloc[x,y]
-        if d1!=0 :  dfo.iloc[x,y]=d2/d1
-#        print(d3)
-#    if n<=3 :  print(i)
-#df7=df5.iloc[1,1]
-#x=df7
-#x=df6["Unnamed:13"].max()
-#x=df6.max()
-#pt(x)
-dfo=pd.concat([dfo,dfp])
-#df5.to_excel('tmp.xlsx',index=0)
-dfo.to_excel('tmp.xlsx')
-#dfp.to_excel('tmp.xlsx')
-#dfn5.to_excel('tmp.xlsx')
-
-exit(0)
-
 
 def wbread(wb_obj=None,num_sheet=0,wb_path=''):
     if wb_obj==None: wb=openpyxl.load_workbook(wb_path)
