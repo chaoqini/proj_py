@@ -33,13 +33,13 @@ dfn6=pd.read_excel(file,sheet_name=-6)
 #df3=df2.iloc[46:50]
 #df2.append(df3)
 #df4=pd.concat([df2,df3])
-df1=dfn6.iloc[51:,6:]
-df2=dfn5.iloc[51:,6:]
+df1=dfn6.iloc[51:92,6:]
+df2=dfn5.iloc[51:92,6:]
 #pt(df5.head())
 #for i in df5:
 #df7=pd.DataFrame()
 dfp=dfn5.iloc[48-2:51-1,7-1:]
-dfo=df2
+dfd=df2
 #pt(df6.shape[1])
 #for i in df5.iteritems():
 for x in range(df1.shape[0]):
@@ -48,7 +48,7 @@ for x in range(df1.shape[0]):
 #        print(df6.iloc[y,x])
         d1=df1.iloc[x,y]
         d2=df2.iloc[x,y]
-        if d1!=0 :  dfo.iloc[x,y]=d2/d1
+        if d1!=0 :  dfd.iloc[x,y]=d2/d1
 #        print(d3)
 #    if n<=3 :  print(i)
 #df7=df5.iloc[1,1]
@@ -56,9 +56,22 @@ for x in range(df1.shape[0]):
 #x=df6["Unnamed:13"].max()
 #x=df6.max()
 #pt(x)
-dfo=pd.concat([dfo,dfp])
+#pt(dfd.max())
+#pt(dfd.min())
+#pt(dfd.mean())
+#pt(dfd.std())
+dfdmax=dfd.max()
+dfdmin=dfd.min()
+dfdmean=dfd.mean()
+dfdstd=dfd.std()
+#pt(dfdmax)
+#dfa=pd.concat([dfd,dfp,dfdmax,dfdmin,dfdmean,dfdstd])
+#dfa=pd.concat([dfd,dfp,dfdmax])
+#dfa=dfdmax.T
+dfa=dfdmax.transpose()
 #df5.to_excel('tmp.xlsx',index=0)
-dfo.to_excel('tmp.xlsx')
+pt(dfa)
+dfa.to_excel('tmp.xlsx')
 #dfp.to_excel('tmp.xlsx')
 #dfn5.to_excel('tmp.xlsx')
 
