@@ -73,7 +73,6 @@ param2='v1p0_af'
 ## ==========
 q.cmp2(param1,param2)
 
-
 print(dir(x))
 print(type(x))
 print(x)

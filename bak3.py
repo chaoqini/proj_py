@@ -1,25 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import openpyxl
+#import openpyxl
 import numpy as np 
+import pandas as pd
 from matplotlib import pyplot as plt 
 
-#class wbacbi:
-#    def __init__(self,wbfile):
-#        self.wbfile=wbfile
-#        self.db=[]
-#        self.nrowsPreData=5
-#        self.unitIndex=1
-#        self.wb2db(wbfile)
-
-#    def wb2db(self,wbfile):
-#        wb=openpyxl.load_workbook(wbfile)
-
-#def g(x)->str:
-#    for k,v in locals().items():
-#        if v is x:
-#            return k
 
 def pt(x,display=1,fexit=0):
     print("dir is:\n",dir(x))
@@ -27,6 +13,74 @@ def pt(x,display=1,fexit=0):
     if display==1: print("variable is:\n",x)
     if fexit!=0: exit(0)
     return x
+
+##file='dt2.xlsx'
+#file='test.xlsm'
+file='dt1.xlsx'
+dfn5=pd.read_excel(file,sheet_name=-5)
+dfn6=pd.read_excel(file,sheet_name=-6)
+#data=wb.head()
+#pt(wb)
+#pt(wb.shape)
+#pt(wb.describe)
+#pt(wb.info)
+#wb.to_excel('tmp.xlsx')
+#da=wb[46:]
+#da=da.iloc[:,4:]
+#da=wb.iloc[46:,5:]
+#df2.loc[len(df2)]=['a','b','c']
+#df3=df2.iloc[46:50,:]
+#df3=df2.iloc[46:50]
+#df2.append(df3)
+#df4=pd.concat([df2,df3])
+df1=dfn6.iloc[51:92,6:]
+df2=dfn5.iloc[51:92,6:]
+#pt(df5.head())
+#for i in df5:
+#df7=pd.DataFrame()
+dfp=dfn5.iloc[48-2:51-1,7-1:]
+dfd=df2
+#pt(df6.shape[1])
+#for i in df5.iteritems():
+for x in range(df1.shape[0]):
+    for y in range(df1.shape[1]):
+#        print(df5.iloc[y,x])
+#        print(df6.iloc[y,x])
+        d1=df1.iloc[x,y]
+        d2=df2.iloc[x,y]
+        if d1!=0 :  dfd.iloc[x,y]=d2/d1
+#        print(d3)
+#    if n<=3 :  print(i)
+#df7=df5.iloc[1,1]
+#x=df7
+#x=df6["Unnamed:13"].max()
+#x=df6.max()
+#pt(x)
+#pt(dfd.max())
+#pt(dfd.min())
+#pt(dfd.mean())
+#pt(dfd.std())
+dfdmax=dfd.max().to_frame().T
+dfdmin=dfd.min().to_frame().T
+dfdmean=dfd.mean().to_frame().T
+dfdstd=dfd.std().to_frame().T
+#pt(dfdmax)
+#dfa=pd.concat([dfd,dfp,dfdmax,dfdmin,dfdmean,dfdstd])
+dfa=pd.concat([dfd,dfp,dfdmean,dfdstd,dfdmin,dfdmax])
+#dfa=dfdmax
+#dfa=dfdmax.swapaxes()
+#dfa=dfdmax.swapaxes("index", "columns",copy=1)
+#dfa=dfdmax.to_frame().T
+#dfa=dfdmax.T
+#dfa=dfdmax.transpose()
+#df5.to_excel('tmp.xlsx',index=0)
+#pt(dfa)
+dfa.to_excel('tmp.xlsx')
+#dfp.to_excel('tmp.xlsx')
+#dfn5.to_excel('tmp.xlsx')
+
+exit(0)
+
 
 def wbread(wb_obj=None,num_sheet=0,wb_path=''):
     if wb_obj==None: wb=openpyxl.load_workbook(wb_path)
@@ -37,17 +91,17 @@ def wbread(wb_obj=None,num_sheet=0,wb_path=''):
     db=[['' for i in range(1+maxr)]for i in range(1+maxc)]
     for x in range(maxc):
         for y in range(maxr):
-            val=wbs.cell(column=x+1,row=y+1).value
-            db[x+1][y+1]=(val if val is not None else '')
+            v=wbs.cell(column=x+1,row=y+1).value
+            db[x][y]=(v if v is not None else '')
     return db
 
 def wbwrite(db=[],num_sheet=0,wb_path='tmp.xlsx'):
     from openpyxl import Workbook
     wb=Workbook() 
     wbs=wb.worksheets[num_sheet]
-    for x in range(1,len(db)):
-        for y in range(1,len(db[x])):
-            wbs.cell(column=x,row=y).value=db[x][y]
+    for x in range(len(db)):
+        for y in range(len(db[x])):
+            wbs.cell(column=x+1,row=y+1).value=db[x][y]
     wb.save(wb_path)
     return wbs.title
 
@@ -64,109 +118,48 @@ db2=wbread(wb1,-5)
 d1=[c[53-1:-4] for c in db1[7-1:]]
 d2=[c[53-1:-4] for c in db2[7-1:]]
 d3=[['' for r in c] for c in d1]
+#d3=(('' for r in c) for c in d1)
 for c in range(len(d1)):
     for r in range(len(d1[c])):
         i1=d1[c][r];i2=d2[c][r]
         if i1!='' and i2!='' and float(i2)!=0:
             v=float(i1)/float(i2)
             v='%.3f%%'%v
+#            v='%.4f'%v
             d3[c][r]=v
+#            d3(c,r)=v
 
 
-wbwrite(d3)
+#for c in range(len(d3)):
+#    for r in range(len(d3[c])):
+#        i1=d1[c][r];i2=d2[c][r]
+#        if i1!='' and i2!='' and float(i2)!=0:
+#            v=float(i1)/float(i2)
+#            v='%.3f%%'%v
+#            d3[c][r]=v
+
+
+#dd=[['aa']+i+['bb']+[min(i)]+[max(i)] for i in d3]
+#dd=[[i]+['']*2+[min(i)]+[max(i)+[np.mean(i)]+[np.std(i)]] for i in d3]
+#dd=[str(i)+[min(i)]+[max(i)+[np.mean(i)]+[np.std(i)]] for i in d3]
+#dd=[[i,np.mean(i)] for i in d3]
+
+#x=(i for i in d3[0] if i!='')
+#y=np.mean(d3,axis=0)
+nd=np.array(d3)
+mean=np.mean(nd,axis=0)
+x=mean
+pt(x)
+#dp=[c[47:53] for c in db1]
+
+#da=[c+['']*2+['aa'] for c in dp]
+#da=[i1+i2 for i1 in dp for i2 in d3]
+#da=[ dp[6+i]+d3[i] for i in range(len(d3)) ]
+
+#wbwrite(d3)
+#wbwrite(dd)
+#wbwrite(na)
 exit(0)
 
 
 
-
-wbp1='data1.xlsx'
-#wbp2='test3.xlsx'
-wb1=openpyxl.load_workbook(wbp1)
-#wb2=openpyxl.load_workbook(wbp2)
-db1=wbread(wb1,2)
-#pt(len(db1[0]))
-#wbs1=wb1.worksheets[0]
-#pt(wbs1.max_row)
-#pt(wbs1.title)
-#pt(wb2.properties)
-#x=wbread(wb_test1,0)
-#pt(db1)
-y=wbwrite(db1)
-pt(y)
-exit(0)
-
-
-#wbfile='data1.xlsx'
-#wbfile='/home/qc/download/2201-06-PM_VA05A_HTDR_Result_500hrs_20220216.xlsm'
-#wbf_test1='test1.xlsx'
-wbf_test1='test.xlsm'
-wbfile1='data1.xlsx'
-wb1=openpyxl.load_workbook(wbfile1)
-wbfile2='test2.xlsx'
-wb2=openpyxl.load_workbook(wbfile2)
-wb_test1=openpyxl.load_workbook(wbf_test1)
-#wb2=openpyxl.Workbook()
-#wbn1=wb1.get_sheet_names()#获取sheet页
-#wbs1=wb1.get_sheet_by_name(wbn1[-5])
-#wbn2=wb2.get_sheet_names()
-#wbs2=wb2.get_sheet_by_name(wbn2[0])
-wb1s1=wb1.worksheets[2]
-wb2s1=wb2.worksheets[0]
-#wbts1=wb_test1.worksheets[-5]
-wbts1=openpyxl.load_workbook(wbf_test1).worksheets[-5]
-maxr=wb1s1.max_row    #最大行数
-maxc=wb1s1.max_column  #最大列数
-#pt(maxr)
-#pt(maxc)
-pt(wbts1.title)
-#pt(wb1s1.title)
-db=readsheet(wbf_test1,-5)
-pt(db)
-exit(0)
-#x=wb1s1.cell(row=1,column=1).value
-#db1=[]
-db1=[['' for i in range(1+maxr)]for i in range(1+maxc)]
-#val1=''
-for x in range(maxc):
-#for x in range(1):
-    for y in range(maxr):
-        val = wb1s1.cell(row=y+1,column=x+1).value
-        db1[x+1][y+1] = (val if val is not None else '')
-
-#pt(db1)
-
-#with open('1.txt','w') as f:
-#    for dc in db1:
-#        f.write('\n')
-#    for v in dc:
-#            if v != '' :
-##                print(v,"\r")
-#                f.write(str(v)+' ')
-
-#pt(len(db1))
-#pt(len(db1[0]))
-for c in range(3,maxc+1):
-    data=db1[c][6:maxr+1]
-    data=[i for i in data if i != '']
-#    mean=np.mean(data)
-#    db1[c].append(db1[c][48])
-    if data!=[] :
-        db1[c].append('')
-        db1[c].append(db1[c][1])
-        db1[c].append(db1[c][2])
-        db1[c].append(np.mean(data))
-        db1[c].append(np.std(data))
-        db1[c].append(max(data))
-        db1[c].append(min(data))
-
-#pt(len(db1))
-#pt(len(db1[4]))
-
-wb2s2=wb2.worksheets[1]
-i=0
-for x in range(len(db1)):
-    for y in range(len(db1[x])):
-        wb2s2.cell(column=x+1,row=y+1).value=db1[x][y]
-#pt(i)
-#pt(wb2s2.title)
-wb2.save('test2.xlsx')
