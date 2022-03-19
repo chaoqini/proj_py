@@ -4,7 +4,7 @@
 import sys
 import numpy as np 
 import pandas as pd
-#from matplotlib import pyplot as plt 
+from matplotlib import pyplot as plt 
 
 class wbqual:
     def __init__(self,file):
@@ -37,9 +37,7 @@ class wbqual:
         dfa=pd.concat([dfd,dfp,dfdmean,dfd4sigmaper,dfdmin,dfdmax])
         dfa.to_excel(target)
 
-def main(file=sys.argv[1],target='tmp.xlsx'):
-    q=wbqual(file)
-    if len(sys.argv)>2: target=sys.argv[2]
-    q.makeratio(target)
-if __name__ == '__main__' : main()   
-#if __name__ == '__main__' : main(sys.argv[1],sys.argv[2])   
+#q=wbqual('dt1.xlsx')
+#q.makeratio('tmp4.xlsx')
+q=wbqual(sys.argv[1])
+q.makeratio(sys.argv[2])
