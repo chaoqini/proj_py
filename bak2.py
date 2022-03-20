@@ -1,25 +1,8 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
-import openpyxl
-import numpy as np 
-from matplotlib import pyplot as plt 
-
-#class wbacbi:
-#    def __init__(self,wbfile):
-#        self.wbfile=wbfile
-#        self.db=[]
-#        self.nrowsPreData=5
-#        self.unitIndex=1
-#        self.wb2db(wbfile)
-
-#    def wb2db(self,wbfile):
-#        wb=openpyxl.load_workbook(wbfile)
-
-#def g(x)->str:
-#    for k,v in locals().items():
-#        if v is x:
-#            return k
+import pandas as pd
+from pathlib import Path
+import struct
+import numpy as np
 
 def pt(x,display=1,fexit=0):
     print("dir is:\n",dir(x))
@@ -28,77 +11,24 @@ def pt(x,display=1,fexit=0):
     if fexit!=0: exit(0)
     return x
 
-def wbread(wb_obj=None,num_sheet=0,wb_path=''):
-    if wb_obj==None: wb=openpyxl.load_workbook(wb_path)
-    else: wb=wb_obj
-    wbs=wb.worksheets[num_sheet]
-    maxc=wbs.max_column
-    maxr=wbs.max_row
-    db=[['' for i in range(1+maxr)]for i in range(1+maxc)]
-    for x in range(maxc):
-        for y in range(maxr):
-            val=wbs.cell(column=x+1,row=y+1).value
-            db[x][y]=(val if val is not None else '')
-    return db
+mnist_path=Path('./mnist')
 
-def wbwrite(db=[],num_sheet=0,wb_path='tmp.xlsx'):
-    from openpyxl import Workbook
-    wb=Workbook() 
-    wbs=wb.worksheets[num_sheet]
-    for x in range(len(db)):
-        for y in range(len(db[x])):
-            wbs.cell(column=x+1,row=y+1).value=db[x][y]
-    wb.save(wb_path)
-    return wbs.title
+#pt(mnist_path)
 
+train_img_path=mnist_path/'train-images-idx3-ubyte'
+train_lab_path=mnist_path/'train-labels-idx1-ubyte'
+test_img_path=mnist_path/'t10k-images-idx3-ubyte'
+test_lab_path=mnist_path/'t10k-labels-idx1-ubyte'
+#pt(train_img_path)
 
-#data1='test1.xlsx'
-#data1='test2.xlsx'
-data1='dt2.xlsx'
-wb1=openpyxl.load_workbook(data1)
-db1=wbread(wb1,-6)
-db2=wbread(wb1,-5)
-#wbwrite(db1)
-#wbwrite(db2)
+#f=open(train_img_path,'rb')
+with open(train_img_path,'rb') as f:
+    b=struct.unpack('>4i',f.read(16))
+    a=np.fromfile(f,dtype=np.uint8)
+    a=a.reshape(-1,28*28)
+pt(a)
+pt(a.ndim)
+pt(a.shape)
 
-d1=[c[53-1:-4] for c in db1[7-1:]]
-d2=[c[53-1:-4] for c in db2[7-1:]]
-d3=[['' for r in c] for c in d1]
-for c in range(len(d1)):
-    for r in range(len(d1[c])):
-        i1=d1[c][r];i2=d2[c][r]
-        if i1!='' and i2!='' and float(i2)!=0:
-            v=float(i1)/float(i2)
-#            v='%.3f%%'%v
-            d3[c][r]=v
-
-
-#for c in range(len(d3)):
-#    for r in range(len(d3[c])):
-#        i1=d1[c][r];i2=d2[c][r]
-#        if i1!='' and i2!='' and float(i2)!=0:
-#            v=float(i1)/float(i2)
-#            v='%.3f%%'%v
-#            d3[c][r]=v
-
-
-#dd=[['aa']+i+['bb']+[min(i)]+[max(i)] for i in d3]
-#dd=[i+['']*2+[min(i)]+[max(i)+[np.mean(i)]+[np.std(i)]] for i in d3]
-
-x=d3[0]
-x=(i for i in d3[0] if i!='')
-x=[i for i in d3[0] if i!='']
-y=np.mean(x)
-#pt(x)
-pt(y)
-#dp=[c[47:53] for c in db1]
-
-#da=[c+['']*2+['aa'] for c in dp]
-#da=[i1+i2 for i1 in dp for i2 in d3]
-#da=[ dp[6+i]+d3[i] for i in range(len(d3)) ]
-
-#wbwrite(x)
-exit(0)
-
-
-
+pt(a[0])
+pt(a[0].reshape(28*28))
