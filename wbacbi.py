@@ -37,9 +37,16 @@ class wbqual:
         dfa=pd.concat([dfd,dfp,dfdmean,dfd4sigmaper,dfdmin,dfdmax])
         dfa.to_excel(target)
 
+<<<<<<< HEAD
 def main(file=sys.argv[1],target='tmp.xlsx'):
     q=wbqual(file)
     if len(sys.argv)>2: target=sys.argv[2]
     q.makeratio(target)
 if __name__ == '__main__' : main()   
 #if __name__ == '__main__' : main(sys.argv[1],sys.argv[2])   
+=======
+def main(file=sys.argv[1],target=sys.argv[2]):
+    q=wbqual(file)
+    q.makeratio(target)
+if __name__ == '__main__' : main()   
+>>>>>>> 732ed3000878bb7ae1d0b945beffa7fd7a845b89
