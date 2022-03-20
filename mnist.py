@@ -13,9 +13,7 @@ def pt(x,display=1,fexit=0):
     return x
 
 mnist_path=Path('./mnist')
-
 #pt(mnist_path)
-
 train_img_path=mnist_path/'train-images-idx3-ubyte'
 train_lab_path=mnist_path/'train-labels-idx1-ubyte'
 test_img_path=mnist_path/'t10k-images-idx3-ubyte'
@@ -33,6 +31,5 @@ with open(train_img_path,'rb') as f:
 
 n=np.random.randint(50000)
 img=train_img[n].reshape(28,28)
-#pt(img)
 plt.imshow(img,cmap='gray')
 plt.show()
