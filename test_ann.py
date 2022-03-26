@@ -74,21 +74,24 @@ def plt_img(img):
 #print(d_tanh(a))
 #exit(0)
 
+def loss(img,lab,params):
+    ys=predict(img,params)
+    yr=np.eye(ny)[lab]
+    return (ys-yr).dot(ys-yr)
 def predict(img,params):
+    yi=tanh(img+params['b0'])
+    yl=params['w'].dot(yi)+params['b1']
+    ys=softmax(yl)
+    return ys
+def grad_params(img,lab,params):
     w=params['w']     # m*n
     b1=params['b1'] # m*1
     b0=params['b0'] # n*1
     yi=tanh(img+b0)  # n*1
     yl=w.dot(yi)+b1 # m*1
     ys=softmax(yl) # m*1
-    return ys
-def loss(img,lab,params):
-    ys=predict(img,params) # m*1
     yr=np.eye(ny)[lab] # m*1
-    l=np.dot(ys-yr,ys-yr) # 1*1
-    return l
-def grad_params(img,lab,params):
-    l=loss(img,lab,params)
+    l=(ys-yr).dot(ys-yr)  ##1*1
     d_l_ys = 2*(ys-yr)  ## 1*m
     d_ys_yl = d_softmax(yl) ## m*m
     d_yl_yi = w   ## m*n      
@@ -116,15 +119,6 @@ def grad_params(img,lab,params):
     ## dl = dl/dys.dys/dyl.dyl = (dl/dys.dys/dyl).dw.yi = dl/dyl.dw.yi
     ## dl/dw = (dl/dyl.T)*(yi.T)_m*n
 
-def valid_loss(params):
-    loss_accu=0
-    for i in range(valid_num):
-        loss_accu+=loss(valid_img[i],valid_lab[i],params)
-    return loss_accu
-def valid_accuraccy():
-
-
-
 nx=28*28
 ny=10
 params_init={'b0':0.1*np.ones(nx),'b1':0.2*np.ones(ny),'w':0.1*np.ones([ny,nx])}
@@ -142,26 +136,26 @@ l=loss(img,lab,params)
 print("The Image is:\n %s"%np.argmax(pred))
 #plt_img(img)
 
-#h=1e-3
-#grad_list=[]
-#for i in range(10):
-#    n=np.random.randint(50000)
-#    test_param='b1'
-#    params=params_init
-#    grad_p= grad_params(mnist.train_img[n],mnist.train_lab[n],params)
-#    derivative=grad_p[test_param][i]
-#    v1=loss(mnist.train_img[n],mnist.train_lab[n],params)
-#    params[test_param][i]+=h
-#    v2=loss(mnist.train_img[n],mnist.train_lab[n],params)
-#    grade=-(v2-v1)/h
-#    delta=derivative-grade
-#    grad_list.append(delta)
-##    grad_list.append(derivative-(v2-v1)/h)
-#    print('derivative is : ',derivative)
-#    print('grade is : ',grade)
-#    print('delta is : ',delta)
-#print(np.abs(grad_list).max())
-#exit(0)
+h=1e-3
+grad_list=[]
+for i in range(10):
+    n=np.random.randint(50000)
+    test_param='b1'
+    params=params_init
+    grad_p= grad_params(mnist.train_img[n],mnist.train_lab[n],params)
+    derivative=grad_p[test_param][i]
+    v1=loss(mnist.train_img[n],mnist.train_lab[n],params)
+    params[test_param][i]+=h
+    v2=loss(mnist.train_img[n],mnist.train_lab[n],params)
+    grade=-(v2-v1)/h
+    delta=derivative-grade
+    grad_list.append(delta)
+#    grad_list.append(derivative-(v2-v1)/h)
+    print('derivative is : ',derivative)
+    print('grade is : ',grade)
+    print('delta is : ',delta)
+print(np.abs(grad_list).max())
+exit(0)
 
 #h=1e-3
 #grad_list=[]
@@ -185,7 +179,7 @@ print("The Image is:\n %s"%np.argmax(pred))
 ##        print(derivative-(v2-v1)/h)
 #print(np.abs(grad_list).max())
 #print(np.abs(grad_list).argmax())
-
+#
 #h=1e-3
 #grad_list=[]
 #for i in range(784):

@@ -39,7 +39,7 @@ with open(test_lab_path,'rb') as f:
     struct.unpack('>2i',f.read(8))
     test_lab=np.fromfile(f,dtype=np.uint8)
 
-n=np.random.randint(50000)
-img=train_img[n].reshape(28,28)
-plt.imshow(img,cmap='gray')
-plt.show()
+#n=np.random.randint(50000)
+#img=train_img[n].reshape(28,28)
+#plt.imshow(img,cmap='gray')
+#plt.show()
