@@ -100,7 +100,7 @@ def grad_params(img,lab,params):
     d_l_ys = 2*(ys-yr)  ## 1*m
     d_ys_yl = d_softmax(yl) ## m*m
     d_yl_yi = w   ## m*n      
-    d_yi_b0 = 1-yi**2 #  --m*n
+    d_yi_b0 = 1-(img+b0)**2 #  --m*n
     d_l_yl = d_l_ys.dot(d_ys_yl) # 1*m
     d_l_w = np.outer(d_l_yl,yi) # m*n
 #    d_l_w = np.outer(yi,d_l_yl) # m*n
@@ -147,7 +147,7 @@ def train_batch(num_batch,params):
 def combine(params,grad,lr=1):
     params_temp = copy.deepcopy(params) 
     for k in params_temp.keys():
-        params_temp[k] = params_temp[k] + grad[k]*lr
+        params_temp[k] = params_temp[k] - grad[k]*lr
     return params_temp
 
 nx=28*28
@@ -173,7 +173,6 @@ print("The Image is:\n %s"%np.argmax(pred))
 
 num_batch=int(mnist.train_num/batch_size)
 for i in range(num_batch):
-#for i in range(40):
     print('running batch : %s/%s'%(i+1,num_batch))
     avggrad_batch=train_batch(i,params)
     params=combine(params,avggrad_batch)
