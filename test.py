@@ -4,6 +4,8 @@
 import numpy as np
 import mnist
 import copy
+import json
+import pandas as pd
 #from matplotlib import pyplot as plt 
 
 
@@ -172,15 +174,25 @@ print("The Image is:\n %s"%np.argmax(pred))
 #print(combine(params,train_batch(0,params)))
 
 num_batch=int(mnist.train_num/batch_size)
-for i in range(num_batch):
-#for i in range(40):
+#for i in range(num_batch):
+for i in range(20):
     print('running batch : %s/%s'%(i+1,num_batch))
     avggrad_batch=train_batch(i,params)
     params=combine(params,avggrad_batch)
-
+#params_json=json.dumps(params.tolist())
+#df=pd.DataFrame(params)
 x=valid_accuracy(params)
-print(x)
+#np.save('p1.npy',params)
+#np.savetxt('p1.txt',params)
+#np.savetxt('p1.txt',params.values())
+#np.savetxt('p1.txt',params['b1'])
+#npy_p1=np.load('p1.npy',allow_pickle=1)
 
+#print(df)
+#print(npy_p1)
+#pt(params_json)
+#pt(params,0)
+#pt(params.values())
 
 exit(0)
 
@@ -248,100 +260,6 @@ exit(0)
 ##    print('delta is : ',delta)
 ##        print(derivative-(v2-v1)/h)
 #print(np.abs(grad_list).max())
-exit(0)
-
-#a=range(1,10)
-#b=range(1,4)
-#x=np.diag(a)
-#x=np.outer(a,b)
-#one_hot=np.identity(10)
-#pt(x)
-#exit(0)
-
-#a=np.arange(6).reshape(2,3)    
-#a=np.arange(6)
-#b=np.arange(12).reshape(3,4)
-#c=np.arange(1,10)
-#d=np.arange(1,13).reshape(4,3)
-#b=np.arange(6)+1
-print(a)
-print(b)
-print(c)
-print(d)
-#print(a*b)
-#print(a.dot(b))
-#print(a.dot(b))
-#print(np.linalg.pinv(c))
-
-#np.random.seed(1)
-#img=list(range(784))
-#img=np.random.randint(10,100,size=(2,4))
-#x=np.random.randint(10,100,size=(4,1))
-#x=np.random.randint(0,255,size=(nx))
-#b0=np.random.randint(0,255,size=(nx))
-#w=np.random.randint(-99,99,size=(ny,nx))
-#b1=np.random.randint(-99,99,size=(ny))
-#yr=np.random.randint(0,1,size=(ny))
-#yi=tanh(x-b0)
-#y2=dot(w1,y1)+b1
-#yl=w.dot(yi)+b1
-#ys=softmax(yl)
-#yr=np.eye(10)[n]
-#l=(ys-yr).dot(ys-yr)
-#pt(b0)
-#pt(w1)
-#pt(b1)
-#pt(x)
-#pt(y1)
-#pt(y2)
-#pt(yo)
-#pt(yr)
-#pt(l)
-#k_l_ys=2*(ys-yr)
-#k_ys_yl=k_sm(yl)
-#def k_yl_w(i,j):
-#    k_yl_w=np.eye(ny)[i]*yi[j]
-#    return k_yl_w
-#k_l_w=k_l_yo.dot(k_yo_y2).dot(k_y2_w)
-#k_l_w=np.outer(k_l_yo.dot(k_yo_y2),k_y2_w)
-#k_l_w=k_yo_y2.dot(k_l_yo).dot(k_y2_w)
-#k_l_yl=k_l_ys.dot(k_ys_yl)
-#k_l_wij=k_l_ys.dot(k_ys_yl).dot(k_yl_w(2,1))
-#k_l_wij=k_l_ys.dot(k_ys_yl).dot( np.eye(ny)[3]*yi[1] )
-#k_l_b1i=k_l_ys.dot(k_ys_yl).dot(np.eye(ny)[3])
-#k_l_b0i=0   
-#pt(k_l_wij)
-#pt(k_l_b1i)
-#k_l_w=np.outer(yi,k_l_yl)
-#k_l_w=k_l_ys.dot(k_ys_yl).dot(k_yl_w)
-#pt(k_l_ys)
-#pt(k_ys_yl)
-#pt(k_l_yl)
-#pt(k_l_yl.shape)
-#pt(k_yl_w(2,1).T)
-#pt(k_yl_w(2,1))
-#pt(k_yl_w(2,1).T.shape)
-#pt(np.eye(ny)[2]*yi[1])
-#pt(yi)
-
-#x=k_tanh(range(4))
-#pt(x)
-#one_hot=np.identity(10)
-#one_hot=np.eye(10)
-#pt(one_hot[5])
-#yr=one_hot[n]
-#db1=
-#k_y2_b1=np.ones(len(b1))
-#dy2=dot(k_y2_b1,db1)
-#dyo=dot(k_softmax(y2),dy2)
-#dyo=dsoftmax(y2)
-#l=dot(yo-yr,yo-yr)
-#dl=dot(dyo,2*(yo-yr))
-#k_l_b1=dot()
-#pt(dl)
-
-
-
 
 
 
