@@ -10,8 +10,8 @@ from matplotlib import pyplot as plt
 import ann
 
 
-img=ZZ
-
+a=np.arange(9)
+print(a)
 
 
 
