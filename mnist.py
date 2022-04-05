@@ -38,6 +38,10 @@ with open(train_lab_path,'rb') as f:
 with open(test_lab_path,'rb') as f:
     struct.unpack('>2i',f.read(8))
     test_lab=np.fromfile(f,dtype=np.uint8)
+def plot(img,h=28,w=28):
+    img=img.reshape(h,-1)
+    plt.imshow(img,cmap='gray')
+    plt.show()
 
 #n=np.random.randint(50000)
 #img=train_img[n].reshape(28,28)
