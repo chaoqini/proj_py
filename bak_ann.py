@@ -126,26 +126,22 @@ def train_params(params):
 
 nx=28*28
 ny=10
-params_init={'b0':0*np.ones(nx),'b1':0*np.ones(ny),'w':1*np.ones([ny,nx])}
+#params_init={'b0':0*np.ones(nx),'b1':0*np.ones(ny),'w':1*np.ones([ny,nx])}
 #params=params_init
 with open('p1.pkl', 'rb') as f: params=pickle.load(f)
 #params=train_params(params)
 #with open('p1.pkl', 'wb') as f: pickle.dump(params, f)
 n=np.random.randint(mnist.test_num)
-acc=valid_accuracy(params)
-lab=mnist.test_lab[n]
-img=mnist.test_img[n]
-pre=np.argmax(predict(img,params))
-print('The accuracy is : %s'%acc)
-print('Label number is : %s'%lab)
-print('Precdict number is : %s'%pre)
-plt_img(img)
-
-#pt(params,0)
-#np.save('p1.npy',params)
-#np.savetxt('p1.txt',params)
-#np.savetxt('p1.txt',params.values())
-#np.savetxt('p1.txt',params['b1'])
+def show(n=0):
+#    acc=valid_accuracy(params)
+    lab=mnist.test_lab[n]
+    img=mnist.test_img[n]
+    pre=np.argmax(predict(img,params))
+#    print('The accuracy is : %.2f%%'%(acc*100))
+    print('Real lab number is :\t%s'%lab)
+    print('Precdict number is :\t%s'%pre)
+    plt_img(img)
+#show(n)
 
 
 
