@@ -87,6 +87,15 @@ class ann:
                     slp=(l2-l1)/(2*h)
                     slope[k][i,j]=slp
         return slope
+    def cmp(x,parms,lab,k='d_b1',h=1e-6):
+        param_d=ann.bp(x,params,lab)
+        param_k=ann.k(x,params,lab)
+        print('%s derivative:'%k)
+        print(param_d[k][:10,300:310])
+        print(param_d[k].shape)
+        print('%s slope:'%k)
+        print(param_k[k][:10,300:310])
+
 ## ==========
     def loss(x,parms,lab):
         y=ann.fp(x,params)
@@ -123,11 +132,11 @@ class ann:
 
 ## ==========
 #mnist.train_num=50000
-def batch(params,batch=50,num_batch=0,k=0,lr=1):
+def batch(params,batch=50,num_batch=0,kfun=0,lr=1):
     max_num_batch=int(mnist.train_num/batch)
     if num_batch==0: num_batch=max_num_batch
     num_batch=min(max_num_batch,int(num_batch))
-    if k==0 :
+    if kfun==0 :
         print('-- use derivative grade function')
         grad_function=ann.bp
     else:
@@ -138,10 +147,10 @@ def batch(params,batch=50,num_batch=0,k=0,lr=1):
         x=mnist.train_img[nb]
         lab=mnist.train_lab[nb]
         grad_acc=grad_function(x,params,lab)
-        print('='*10,' %s/%s :'%(i,num_batch))
+        print('='*10,' %s/%s :'%(i+1,num_batch))
         for j in range(1,batch):
-            if k!=0 :
-                print('train number is  %s/%s at %s/%s batchs'%(j+1,batch,i,num_batch))
+            if kfun!=0 :
+                print('train number is  %s/%s at %s/%s batchs'%(j+1,batch,i+1,num_batch))
             n=nb+j
             x=mnist.train_img[n]
             lab=mnist.train_lab[n]
@@ -195,16 +204,18 @@ params=params_init
 ## ==========
 ##  training
 ## ==========
-params=batch(params,30,200,1)
+#params=batch(params,10,2,1)
 #params=batch(params,20,50)
-(valid_per,loss_avg)=valid(params)
+#(valid_per,loss_avg)=valid(params)
 #print('valid percent is : %.2f%%'%(valid_per*100))
 #print('average loss is : %s'%(loss_avg))
 #with open('p1.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
 
-
 ## ==========
 num=np.random.randint(mnist.test_num)
-show(num)
+x=mnist.train_img[num]
+lab=mnist.train_lab[num]
+ann.cmp(x,params,lab)
+#show(num)
 ## ==========
