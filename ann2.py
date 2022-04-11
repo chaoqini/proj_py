@@ -78,12 +78,9 @@ class ann:
         a1=op['a1'].reshape(-1,1)
         w1=params['w1']
         yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#        d_a1=(1-yl)/(1-y+ann.logdv)-yl/(y+ann.logdv)
-#        d_a1=ann.gl['loss'](y,yl)
         d_a1=ann.gl['dloss'](y,yl)
         d_z1=(d_softmax(z1).T)@d_a1
         d_z0=(w1.T@d_z1)*ann.g['df'](z0)
-#        d_z0=(w1.T@d_z1)*d_tanh(z0)
         d_w1=d_z1@a0.T
         d_b1=d_z1
         d_b0=d_z0
@@ -239,17 +236,17 @@ params=params_init
 #params=batch(params,100,300)
 #params=batch(params,200)
 #params=batch(params,200,0,.01,1)
-params=batch(params,10,0,.001,1)
+#params=batch(params,10,0,.001,1)
 (valid_per,loss_avg)=valid(params)
 #show(num)
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
 
 ## ==========
-#num=np.random.randint(mnist.test_num)
-#x=mnist.train_img[num]
-#lab=mnist.train_lab[num]
-#ann.cmp(x,params,lab,'d_b1',1e-9)
-#ann.cmp(x,params,lab,'d_w1')
+num=np.random.randint(mnist.test_num)
+x=mnist.train_img[num]
+lab=mnist.train_lab[num]
+ann.cmp(x,params,lab,'d_w1',1e-15)
+##ann.cmp(x,params,lab,'d_w1')
 #show(num)
 ## ==========
