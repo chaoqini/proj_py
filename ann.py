@@ -32,6 +32,19 @@ def d_tanh(x):
     return 1-y**2
 def d_softmax(x):
     y=softmax(x)
+    print('y')
+    print(y.shape)
+    print(y)
+    yy=np.outer(y,y)
+    print('yy')
+    print(yy.shape)
+    print(yy)
+    print('np.diag(y)')
+    print(np.diag(y))
+    zz=(np.diag(y)-np.outer(y,y))
+    print('zz')
+    print(zz.shape)
+    print(zz)
     return np.diag(y)-np.outer(y,y)
 def plt_img(img):
     img=img.reshape(28,28)
@@ -64,7 +77,14 @@ def grad_params(img,lab,params):
     yr=np.eye(ny)[lab] # m*1
     l=np.dot(ys-yr,ys-yr) # 1*1
     d_l_ys = 2*(ys-yr)  ## 1*m  -- d_a1
+    print('d_a1')
+    print(d_l_ys)
     d_ys_yl = d_softmax(yl) ## m*m  
+    print('z1')
+    print(yl.shape)
+    print(yl)
+    print('d_softmax')
+    print(d_ys_yl)
     d_yl_yi = w   ## m*n      
     d_yi_b0 = 1-yi**2 #  --m*n
     d_l_yl = d_l_ys.dot(d_ys_yl) # 1*m -- d_z1=d_softmax@d_a1
@@ -143,6 +163,17 @@ def show(n=0):
     plt_img(img)
 #show(n)
 
+nx=28*28; ny=10
+params_init={'b0':0*np.ones(nx),'b1':0*np.ones(ny),'w':1*np.ones([ny,nx])}
+#params=params_saved
+params=params_init
+num=100
+x=mnist.train_img[num]
+lab=mnist.train_lab[num]
+x=x[:,0]
+pp2 = grad_params(x,lab,params)
+print('ann b1')
+print(pp2['b1'])
 
 
 

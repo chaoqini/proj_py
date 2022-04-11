@@ -63,15 +63,15 @@ def grad_params(img,lab,params):
     ys=softmax(yl) # m*1
     yr=np.eye(ny)[lab] # m*1
     l=np.dot(ys-yr,ys-yr) # 1*1
-    d_l_ys = 2*(ys-yr)  ## 1*m
-    d_ys_yl = d_softmax(yl) ## m*m
+    d_l_ys = 2*(ys-yr)  ## 1*m  -- d_a1
+    d_ys_yl = d_softmax(yl) ## m*m  
     d_yl_yi = w   ## m*n      
     d_yi_b0 = 1-yi**2 #  --m*n
-    d_l_yl = d_l_ys.dot(d_ys_yl) # 1*m
-    d_l_w = np.outer(d_l_yl,yi) # m*n
-    d_l_b1=d_l_yl # 1*m
+    d_l_yl = d_l_ys.dot(d_ys_yl) # 1*m -- d_z1=d_softmax@d_a1
+    d_l_w = np.outer(d_l_yl,yi) # m*n  -- d_w1=d_z1@a0.T
+    d_l_b1=d_l_yl # 1*m  -- d_b1=d_z1
 #    d_l_b0=d_l_yl.dot(d_yl_yi).dot(d_yi_b0) # 
-    d_l_b0=d_l_yl.dot(d_yl_yi)*d_yi_b0 # 
+    d_l_b0=d_l_yl.dot(d_yl_yi)*d_yi_b0 #  -- d_b0=d_z0 
     grad_w = -d_l_w
     grad_b1 = -d_l_b1
     grad_b0 = -d_l_b0
@@ -133,16 +133,27 @@ with open('p1.pkl', 'rb') as f: params=pickle.load(f)
 #with open('p1.pkl', 'wb') as f: pickle.dump(params, f)
 n=np.random.randint(mnist.test_num)
 def show(n=0):
-    acc=valid_accuracy(params)
+#    acc=valid_accuracy(params)
     lab=mnist.test_lab[n]
     img=mnist.test_img[n]
     pre=np.argmax(predict(img,params))
-    print('The accuracy is : %.2f%%'%(acc*100))
-    print('Real lab number is : %s'%lab)
-    print('Precdict number is : %s'%pre)
+#    print('The accuracy is : %.2f%%'%(acc*100))
+    print('Real lab number is :\t%s'%lab)
+    print('Precdict number is :\t%s'%pre)
     plt_img(img)
 #show(n)
 
+nx=28*28; ny=10
+params_init={'b0':0*np.ones(nx),'b1':0*np.ones(ny),'w':1*np.ones([ny,nx])}
+#params=params_saved
+params=params_init
+num=100
+x=mnist.train_img[num]
+lab=mnist.train_lab[num]
+
+pp2 = grad_params(x,lab,params)
+#print('ann b1')
+#print(pp2['b1'])
 
 
 

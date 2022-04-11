@@ -21,7 +21,7 @@ def softmax(x):
     return exp/exp.sum()
 def d_softmax(x): 
     y=softmax(x)
-    return np.diag(y)-np.outer(y,y)
+    return np.diag(y[:,0])-np.outer(y,y)
 ## ==========
 ## ==========
 
@@ -30,7 +30,7 @@ def d_softmax(x):
 ## ==========
 class ann:
     logdv=1e-23
-    def fp(x,params):
+    def fp(x,params,isop=0):
         x=x.reshape(-1,1)
         b0=params['b0'].reshape(-1,1)
         b1=params['b1'].reshape(-1,1)
@@ -41,12 +41,15 @@ class ann:
         z1=w1@a0+b1
         a1=softmax(z1)
         y=a1
+        if isop==0:
+            return y
+        else:
 #        op={'params':params,'z0':z0,'a0':a0,'z1':z1,'a1':a1}
-        op={'z0':z0,'a0':a0,'z1':z1,'a1':a1}
-        return (y,op)
+            op={'z0':z0,'a0':a0,'z1':z1,'a1':a1}
+            return (y,op)
 ## ==========
     def bp(x,params,lab):
-        (y,op)=ann.fp(x,params)
+        (y,op)=ann.fp(x,params,1)
         z0=op['z0'].reshape(-1,1)
         a0=op['a0'].reshape(-1,1)
         z1=op['z1'].reshape(-1,1)
@@ -55,7 +58,20 @@ class ann:
         yl=np.eye(y.shape[0])[lab].reshape(-1,1)
 #        d_a1=(1-yl)/(1-y+ann.logdv)-yl/(y+ann.logdv)
         d_a1=2*(y-yl)
-        d_z1=d_softmax(z1).T@d_a1
+#        print('aaaaaaa')
+#        print(d_a1)
+#        z1=z1[:,0]
+#        print('z1')
+#        print(z1.shape)
+#        print(z1)
+#        print('d_softmax')
+#        print(d_softmax(z1))
+        d_z1=(d_softmax(z1).T)@d_a1
+#        d_z1=((d_a1.T)@(d_softmax(z1))).T
+#        d_z1=(d_softmax(z1))@d_a1
+#        print(d_z1.shape)
+#        print(d_a1.shape)
+#        print(d_softmax(z1).shape)
 #        d_z0=(w1.T@d_z1)*d_relu(z0)
         d_z0=(w1.T@d_z1)*d_tanh(z0)
         d_w1=d_z1@a0.T
@@ -80,16 +96,32 @@ class ann:
                     slp=(l2-l1)/(2*h)
                     slope[k][i,j]=slp
         return slope
+    def cmp(x,parms,lab,k='d_b1',h=1e-6):
+        param_d=ann.bp(x,params,lab)
+        param_k=ann.k(x,params,lab)
+        ppd = param_d[k]
+        ppk = param_k[k]
+        (rd,cd) = ppd.shape
+        (rk,ck) = ppk.shape
+        (prd,pcd)=(int(rd/2),int(cd/2))
+        (prk,pck)=(int(rk/2),int(ck/2))
+        print('%s derivative:'%k)
+        print(ppd[prd-5:prd+5,pcd-5:pcd+5])
+        print('%s slope:'%k)
+        print(ppk[prk-5:prk+5,pck-5:pck+5])
+#        print(prd,pcd)
+#        print(prk,pck)
+
 ## ==========
     def loss(x,parms,lab):
-        y=ann.fp(x,params)[0]
+        y=ann.fp(x,params)
         yl=np.eye(y.shape[0])[lab].reshape(-1,1)
         l=(y-yl).T@(y-yl)
         l=np.sum((y-yl)*(y-yl))
         return l
 ## ==========
     def cost(x,params,lab):
-        y=ann.fp(x,params)[0].reshape(-1,1)
+        y=ann.fp(x,params).reshape(-1,1)
         yl=np.eye(y.shape[0])[lab].reshape(-1,1)
         loss = -yl*np.log(y+ann.logdv)-(1-yl)*np.log(1-y+ann.logdv)
 #        m=y.shape[1]
@@ -116,28 +148,29 @@ class ann:
 
 ## ==========
 #mnist.train_num=50000
-def batch(params,batch=50,num_batch=0,k=0,lr=1):
-    if num_batch==0: numbatch=int(mnist.train_num/batch)
+def batch(params,batch=50,num_batch=0,isslope=0,lr=1):
+    max_num_batch=int(mnist.train_num/batch)
+    if num_batch==0: num_batch=max_num_batch
+    num_batch=min(max_num_batch,int(num_batch))
+    if isslope==0 :
+        print('-- use derivative grade function')
+        grad_function=ann.bp
+    else:
+        print('-- use slope grade function')
+        grad_function=ann.k
     for i in range(num_batch):
         nb=batch*i
-        x=mnist.test_img[nb]
-        lab=mnist.test_lab[nb]
-        if k==0:
-            (y,op)=ann.fp(x,params)
-            grad_acc=ann.bp(x,params,lab)
-        else:   
-            grad_acc=ann.k(x,params,lab)
-        print('='*10,' %s/%s :'%(i,num_batch))
+        x=mnist.train_img[nb]
+        lab=mnist.train_lab[nb]
+        grad_acc=grad_function(x,params,lab)
+        print('='*10,' %s/%s :'%(i+1,num_batch))
         for j in range(1,batch):
-            print('train number is  %s/%s at %s/%s batchs'%(j,batch-1,i,num_batch))
+            if isslope!=0 :
+                print('train number is  %s/%s at %s/%s batchs'%(j+1,batch,i+1,num_batch))
             n=nb+j
-            x=mnist.test_img[n]
-            lab=mnist.test_lab[n]
-            if k==0:
-                (y,op)=ann.fp(x,params)
-                grad=ann.bp(x,params,lab)
-            else:   
-                grad=ann.k(x,params,lab)
+            x=mnist.train_img[n]
+            lab=mnist.train_lab[n]
+            grad=grad_function(x,params,lab)
             for k in grad.keys():
                 grad_acc[k]+=grad[k]
         for k in grad_acc.keys():
@@ -153,7 +186,7 @@ def valid(params):
         lab=mnist.valid_lab[i]
         loss=ann.loss(x,params,lab)
         loss_acc+=loss
-        is1=( ann.fp(x,params)[0].argmax()==lab )
+        is1=(ann.fp(x,params).argmax()==lab)
         correct.append(is1)
     valid_per=correct.count(1)/len(correct)
     loss_avg=loss_acc/(mnist.valid_img.shape[0])
@@ -164,7 +197,7 @@ def valid(params):
 def show(n=0):
     x=mnist.test_img[n]
     lab=mnist.test_lab[n]
-    predict=np.argmax(ann.fp(x,params)[0])
+    predict=np.argmax(ann.fp(x,params))
     print('Real lab number is :\t%s'%lab)
     print('Precdict number is :\t%s'%predict)
     img=x.reshape(28,28)
@@ -187,16 +220,26 @@ params=params_init
 ## ==========
 ##  training
 ## ==========
-#params=batch(params,10,100,1)
-params=batch(params,100)
-(valid_per,loss_avg)=valid(params)
+#params=batch(params,10,2,1)
+#params=batch(params,20,50)
+#(valid_per,loss_avg)=valid(params)
 #print('valid percent is : %.2f%%'%(valid_per*100))
 #print('average loss is : %s'%(loss_avg))
 #with open('p1.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
 
-
 ## ==========
 num=np.random.randint(mnist.test_num)
-show(num)
+num=100
+x=mnist.train_img[num]
+lab=mnist.train_lab[num]
+ann.cmp(x,params,lab,'d_b1')
+#ann.cmp(x,params,lab,'d_w1')
+
+import ann as a2
+pp2 = a2.grad_params(x,lab,params)
+print('ann b1')
+print(pp2['b1'])
+
+#show(num)
 ## ==========
