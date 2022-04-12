@@ -72,8 +72,9 @@ class ann:
 
 
     def FP(X,params,isop=0):
-        print('X input shape : ',X.shape)
+        print('FP X shape : ',X.shape)
 #        X=X.transpose(0,2,1)
+#        print('FP X transpose shape : ',X.shape)
 #        print(X.shape)
         b0=params['b0'].reshape(-1,1)
         b1=params['b1'].reshape(-1,1)
@@ -83,15 +84,15 @@ class ann:
         Z1=w1@A0+b1
         A1=softmax(Z1)
         Y=A1
-#        print('b0 shape: ',b0.shape)
-#        print('w1 shape: ',w1.shape)
-#        print('b1 shape: ',b1.shape)
-#        print('X shape: ',X.shape)
-#        print('Z0 shape: ',Z0.shape)
-#        print('A0 shape: ',A0.shape)
-#        print('Z1 shape: ',Z1.shape)
-#        print('A1 shape: ',A1.shape)
-#        print('Y shape: ',Y.shape)
+        print('FP b0 shape: ',b0.shape)
+        print('FP w1 shape: ',w1.shape)
+        print('FP b1 shape: ',b1.shape)
+        print('FP X shape: ',X.shape)
+        print('FP Z0 shape: ',Z0.shape)
+        print('FP A0 shape: ',A0.shape)
+        print('FP Z1 shape: ',Z1.shape)
+        print('FP A1 shape: ',A1.shape)
+        print('FP Y shape: ',Y.shape)
         if isop==0:
             return Y
         else:
@@ -119,7 +120,9 @@ class ann:
 
 
     def BP(X,params,LAB):
-        X=X.transpose(0,2,1)
+        print('BP X shape:',X.shape)
+#        X=X.transpose(0,2,1)
+#        print('BP X.transpose(0,2,1) shape:',X.shape)
         (Y,OP)=ann.FP(X,params,1)
         Z0=OP['Z0']
         A0=OP['A0']
@@ -235,7 +238,7 @@ class ann:
 
 ## ==========
 #mnist.train_num=50000
-def batch(params,batch=50,num_batch=0,lr=1,isplot=0,isslope=0):
+def batch(params,batch=0,num_batch=0,lr=1,isplot=0,isslope=0):
     if batch==0: batch=100
     max_num_batch=int(mnist.train_num/batch)
     if num_batch<1: num_batch=max_num_batch
@@ -255,7 +258,7 @@ def batch(params,batch=50,num_batch=0,lr=1,isplot=0,isslope=0):
 #    X.append(mnist.train_img[1*batch:2*batch-1])
     X=[];LAB=[]
     num_batch=int(min(num_batch,len(mnist.train_img)/batch))
-    print('num_batch=',num_batch)
+#    print('num_batch=',num_batch)
     for n in range(num_batch):
         X.append(mnist.train_img[n*batch:(n+1)*batch-1])
         LAB.append(mnist.train_lab[n*batch:(n+1)*batch-1])
@@ -282,7 +285,7 @@ def batch(params,batch=50,num_batch=0,lr=1,isplot=0,isslope=0):
 #    ann.BP(X[0],params,LAB[0])
 #    print('len(X)=',len(X))
     for i in range(len(X)):
-        print('iteration is:',i)
+        print('iteration number=:',i)
         grad=ann.BP(X[i],params,LAB[i])
         params=ann.update_params(params,grad,lr)
     return params
@@ -369,7 +372,7 @@ params=params_init
 #params=batch(params,100,300)
 #params=batch(params,200)
 #params=batch(params,200,0,.01,1)
-params=batch(params,3,3,.01,1)
+params=batch(params,2,2,.01,1)
 (valid_per,loss_avg)=valid(params)
 #show(num)
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
