@@ -12,11 +12,11 @@ import sys
 ## ==========
 ## ==========
 def tanh(x): return np.tanh(x)
-def d_tanh(x):
+def tanh_d(x):
     y=tanh(x)
     return 1-y**2
 def relu(x): return np.maximum(0,x)
-def d_relu(x): return (np.sign(x)+1)/2
+def relu_d(x): return (np.sign(x)+1)/2
 def softmax(x): 
     exp=np.exp(x-x.max())
     return exp/exp.sum()
@@ -30,7 +30,7 @@ def sqr_loss(x,params,lab):
     l=(y-yl).T@(y-yl)
     l=np.sum((y-yl)*(y-yl))
     return l
-def d_sqr_loss(y,yl):
+def sqr_loss_d(y,yl):
     return 2*(y-yl)
 def log_loss(x,params,lab,a=1e-23):
     y=ann.fp(x,params)
@@ -38,7 +38,7 @@ def log_loss(x,params,lab,a=1e-23):
 #    l=-(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
     l=-np.sum(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
     return l
-def d_log_loss(y,yl,a=1e-23):
+def log_loss_d(y,yl,a=1e-23):
     dl=-(yl/(y+a)+(1-yl)/(1-y+a))
     return dl
 ## ==========
@@ -48,18 +48,17 @@ def d_log_loss(y,yl,a=1e-23):
 ## ==========
 ## ==========
 class ann:
-    g={'f':tanh,'df':d_tanh}
-#    g={'f':relu,'df':d_relu}
-#    gl={'loss':sqr_loss, 'dloss':d_sqr_loss}
-    gl={'loss':log_loss, 'dloss':d_log_loss}
+    g=[tanh,relu];g_d=[tanh_d,relu_d]
+#    g=[relu,tanh];g_d[relu_d,tanh_d]
+    gl=[log_loss,sqr_loss];gl_d=[log_loss_d,sqr_loss_d]
+#    gl=[sqr_loss,log_loss];gl_d=[sqr_loss_d,log_loss_d]
     def fp(x,params,isop=0):
         x=x.reshape(-1,1)
         b0=params['b0'].reshape(-1,1)
         b1=params['b1'].reshape(-1,1)
         w1=params['w1']
         z0=x+b0
-#        a0=relu(z0)
-        a0=ann.g['f'](z0)
+        a0=ann.g[0](z0)
         z1=w1@a0+b1
         a1=softmax(z1)
         y=a1
@@ -78,12 +77,9 @@ class ann:
         a1=op['a1'].reshape(-1,1)
         w1=params['w1']
         yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#        d_a1=(1-yl)/(1-y+ann.logdv)-yl/(y+ann.logdv)
-#        d_a1=ann.gl['loss'](y,yl)
-        d_a1=ann.gl['dloss'](y,yl)
+        d_a1=ann.gl_d[0](y,yl)
         d_z1=(d_softmax(z1).T)@d_a1
-        d_z0=(w1.T@d_z1)*ann.g['df'](z0)
-#        d_z0=(w1.T@d_z1)*d_tanh(z0)
+        d_z0=ann.g_d[0](z0)*(w1.T@d_z1)
         d_w1=d_z1@a0.T
         d_b1=d_z1
         d_b0=d_z0
@@ -99,9 +95,9 @@ class ann:
             for i in range(v.shape[0]):
                 for j in range(v.shape[1]):
                     v[i,j]-=h
-                    l1=ann.gl['loss'](x,pp,lab)
+                    l1=ann.gl[0](x,pp,lab)
                     v[i,j]+=2*h
-                    l2=ann.gl['loss'](x,pp,lab)
+                    l2=ann.gl[0](x,pp,lab)
                     v[i,j]-=h
                     slp=(l2-l1)/(2*h)
                     slope[k][i,j]=slp
@@ -124,7 +120,7 @@ class ann:
 #    def cost(x,params,lab):
 #        y=ann.fp(x,params).reshape(-1,1)
 #        yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#        loss = -yl*np.log(y+ann.logdv)-(1-yl)*np.log(1-y+ann.logdv)
+#        loss = -yl*np.log(y+ann.log_dv)-(1-yl)*np.log(1-y+ann.log_dv)
 ##        m=y.shape[1]
 #        m=1
 #        cost=np.sum(loss)/m
@@ -177,7 +173,7 @@ def batch(params,batch=50,num_batch=0,lr=1,isplot=0,isslope=0):
             grad=grad_function(x,params,lab)
             for k in grad.keys():
                 grad_acc[k]+=grad[k]
-            loss_acc+=ann.gl['loss'](x,params,lab)
+            loss_acc+=ann.gl[0](x,params,lab)
         for k in grad_acc.keys():
             grad_acc[k]=grad_acc[k]/batch
         params=ann.update_params(params,grad_acc,lr)
@@ -187,7 +183,7 @@ def batch(params,batch=50,num_batch=0,lr=1,isplot=0,isslope=0):
         plt.plot(loss)
         plt.ylabel('Loss')
         plt.xlabel('Iterations /%s'%batch)
-        var_title=(ann.g['f'].__name__,ann.gl['loss'].__name__,lr)
+        var_title=(ann.g[0].__name__,ann.gl[0].__name__,lr)
         title='Active = %s\n Loss function = %s\n Learning rate = %s\n'%var_title
         plt.title(title)
         plt.show()
@@ -199,7 +195,7 @@ def valid(params):
     for i in range(mnist.valid_img.shape[0]):
         x=mnist.valid_img[i]
         lab=mnist.valid_lab[i]
-        loss=ann.gl['loss'](x,params,lab)
+        loss=ann.gl[0](x,params,lab)
         loss_acc+=loss
         is1=(ann.fp(x,params).argmax()==lab)
         correct.append(is1)
@@ -239,7 +235,7 @@ params=params_init
 #params=batch(params,100,300)
 #params=batch(params,200)
 #params=batch(params,200,0,.01,1)
-params=batch(params,10,0,.001,1)
+params=batch(params,2**6,0,.001,1)
 (valid_per,loss_avg)=valid(params)
 #show(num)
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
@@ -249,7 +245,7 @@ params=batch(params,10,0,.001,1)
 #num=np.random.randint(mnist.test_num)
 #x=mnist.train_img[num]
 #lab=mnist.train_lab[num]
-#ann.cmp(x,params,lab,'d_b1',1e-9)
-#ann.cmp(x,params,lab,'d_w1')
+#ann.cmp(x,params,lab,'d_w1',1e-15)
+##ann.cmp(x,params,lab,'d_w1')
 #show(num)
 ## ==========
