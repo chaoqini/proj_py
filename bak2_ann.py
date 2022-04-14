@@ -17,29 +17,40 @@ def tanh_d(x):
     return 1-y**2
 def relu(x): return np.maximum(0,x)
 def relu_d(x): return (np.sign(x)+1)/2
+def sigmod(x): return 1/(1+np.exp(-x))
+def sigmod_d(x):
+    y=sigmod(x)
+    return y-y*y
+
 def softmax(x): 
     exp=np.exp(x-x.max())
     return exp/exp.sum()
-def softmax_d(x): 
-#    print('softmax x shape:',x.shape)
-    y=softmax(x)
-#    print('softmax y shape:',y.shape)
-    d_y=[]
-    for i in y:
-        i=np.squeeze(i)
-#        print('i shape:',i.shape)
-#        print('i0 shape:',i[0].shape)
-        diag=np.diag(i)
-        outer=np.outer(i,i)
-        d_y.append(diag-outer)
-#        print('diag shape:',diag.shape)
-#        print('outer shape:',outer.shape)
-    d_y=np.array(d_y)
+
+def softmax_d(X): 
+#    print('softmax : X shape:',X.shape)
+    OUT=[]
+    for i in range(len(X)):
+#        print('softmax : X[i].shape =',X[i].shape)
+        y=softmax(X[i])    
+#        ysq=np.squeeze(y)
+#        diag=np.diag(ysq)
+#        diag=np.diag(ysq)
+        diag=np.diag(np.squeeze(y))
+        outer=np.outer(y,y)
+        OUT.append(diag-outer)
+#        print('softmax : y.shape =',y.shape)
+#        print('softmax : ysq.shape =',ysq.shape)
+#        print('softmax : diag.shape =',diag.shape)
+#        print('softmax : outer.shape =',outer.shape)
+#        print('softmax : OUT[i].shape =',OUT[i].shape)
+    OUT=np.array(OUT)
+#    print('softmax : OUT.shape =',OUT.shape)
+
 #    print('d_y shape:',d_y.shape)
 #    print('d_y.T shape:',d_y.T.shape)
 #    print('d_y.transpose(0,2,1) shape:',d_y.transpose(0,2,1).shape)
 #    exit(0)
-    return d_y
+    return OUT
 
 def sqr_loss(x,params,lab):
     y=ann.fp(x,params)
@@ -47,17 +58,51 @@ def sqr_loss(x,params,lab):
     l=(y-yl).T@(y-yl)
     l=np.sum((y-yl)*(y-yl))
     return l
-def sqr_loss_d(y,yl):
-    return 2*(y-yl)
+def sqr_loss_d(Y,YL):
+    OUT=[]
+#    print('sqr_loss_d Y shape=',Y.shape)
+#    print('sqr_loss_d YL shape=',YL.shape)
+    for i in range(len(YL)):
+        OUT.append(2*(Y[i]-YL[i]))
+    OUT=np.array(OUT)
+#    print('sqr_loss_d OUT shape=',OUT.shape)
+#    print('sqr_loss_d OUT =',OUT)
+    return  OUT
 def log_loss(x,params,lab,a=1e-23):
     y=ann.fp(x,params)
+#    print('log_loss: y.shape=',y.shape)
+#    print('log_loss: y.T=',y.T)
     yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#    l=-(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
-    l=-np.sum(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
+#    print('log_loss: yl.shape=',yl.shape)
+#    print('log_loss: yl.T=',yl.T)
+#    print('log_loss: (y+a).T=',(y+a).T)
+#    print('log_loss: np.log(y+a).T=',np.log(y+a).T)
+#    print('log_loss: (yl*np.log(y+a)).T=',(yl*np.log(y+a)).T)
+    l=-(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
+#    print('log_loss: l.T=',l.T)
+#    print('log_loss: l.shape=',l.shape)
+    l=np.sum(l)
+#    print('log_loss: l=',l)
     return l
-def log_loss_d(y,yl,a=1e-23):
-    dl=-(yl/(y+a)+(1-yl)/(1-y+a))
-    return dl
+def log_loss_d(Y,YL,a=1e-23):
+    OUT=[]
+#    print('log_loss_d: Y.shape=',Y.shape)
+#    print('log_loss_d: YL.shape=',YL.shape)
+    for i in range(len(Y)):
+#        print('log_loss_d: YL[i].shape=',YL[i].shape)
+#        print('log_loss_d: Y[i].shape=',Y[i].shape)
+        YT=-(YL[i]/(Y[i]+a)+(1-YL[i])/(1-Y[i]+a) )
+        OUT.append(YT)
+#        print('log_loss_d: YT.shape=',YT.shape)
+    OUT=np.array(OUT)
+#    print('log_loss_d: OUT.shape=',OUT.shape)
+#    print('log_loss_d: OUT.T=',OUT.T)
+    return  OUT
+#    dl=-(yl/(y+a)+(1-yl)/(1-y+a))
+#    return dl
+#def log_loss_d(y,yl,a=1e-23):
+#    dl=-(yl/(y+a)+(1-yl)/(1-y+a))
+#    return dl
 ## ==========
 ## ==========
 
@@ -65,35 +110,36 @@ def log_loss_d(y,yl,a=1e-23):
 ## ==========
 ## ==========
 class ann:
-    g=[tanh,relu];g_d=[tanh_d,relu_d]
+#    g=[tanh,relu];g_d=[tanh_d,relu_d]
 #    g=[relu,tanh];g_d[relu_d,tanh_d]
 #    gl=[log_loss,sqr_loss];gl_d=[log_loss_d,sqr_loss_d]
-    gl=[sqr_loss,log_loss];gl_d=[sqr_loss_d,log_loss_d]
-
+#    gl=[sqr_loss,log_loss];gl_d=[sqr_loss_d,log_loss_d]
+    g=(tanh,softmax,log_loss);g_d=(tanh_d,softmax_d,log_loss_d)
+#    g=(tanh,softmax,sqr_loss);g_d=(tanh_d,softmax_d,sqr_loss_d)
 
     def FP(X,params,isop=0):
 #        print('FP X shape : ',X.shape)
 #        X=X.transpose(0,2,1)
 #        print('FP X transpose shape : ',X.shape)
 #        print(X.shape)
-        b0=params['b0'].reshape(1,-1)
-        b1=params['b1'].reshape(1,-1)
+        b0=params['b0'].reshape(-1,1)
+        b1=params['b1'].reshape(-1,1)
         w1=params['w1']
         Z0=X+b0
         A0=ann.g[0](Z0)
-#        Z1=w1@A0+b1
-        Z1=A0@w1.T+b1
+        Z1=w1@A0+b1
+#        Z1=A0@w1+b1
         A1=softmax(Z1)
         Y=A1
-        print('FP b0 shape: ',b0.shape)
-        print('FP w1 shape: ',w1.shape)
-        print('FP b1 shape: ',b1.shape)
-        print('FP X shape: ',X.shape)
-        print('FP Z0 shape: ',Z0.shape)
-        print('FP A0 shape: ',A0.shape)
-        print('FP Z1 shape: ',Z1.shape)
-        print('FP A1 shape: ',A1.shape)
-        print('FP Y shape: ',Y.shape)
+#        print('FP b0 shape: ',b0.shape)
+#        print('FP w1 shape: ',w1.shape)
+#        print('FP b1 shape: ',b1.shape)
+#        print('FP X shape: ',X.shape)
+#        print('FP Z0 shape: ',Z0.shape)
+#        print('FP A0 shape: ',A0.shape)
+#        print('FP Z1 shape: ',Z1.shape)
+#        print('FP A1 shape: ',A1.shape)
+#        print('FP Y shape: ',Y.shape)
         if isop==0:
             return Y
         else:
@@ -121,7 +167,7 @@ class ann:
 
 
     def BP(X,params,LAB):
-        print('BP X shape:',X.shape)
+#        print('BP X shape:',X.shape)
 #        X=X.transpose(0,2,1)
 #        print('BP X.transpose(0,2,1) shape:',X.shape)
         (Y,OP)=ann.FP(X,params,1)
@@ -135,30 +181,42 @@ class ann:
 #        print(Y.shape)
 #        print(Y[0].shape)
         YL=[]
-        for i in range(LAB.shape[0]):
-            YL.append(np.eye(Y.shape[1])[LAB[i]].reshape(-1,1))
+#        for i in range(LAB.shape[0]):
+        for i in range(len(LAB)):
+            YL.append(np.eye(Y.shape[1])[LAB[i,0,0]].reshape(-1,1))
+#            print('BP : LAB[i,0,0] = ',LAB[i,0,0])
+#            print('BP : YL[i].T =',YL[i].T)
         YL=np.array(YL)
-        d_A1=ann.gl_d[0](Y,YL)
-        d_Z1=(softmax_d(Z1).transpose(0,2,1))@d_A1
+#        YL=np.squeeze(YL)
+#        print('BP : YL.shape =',YL.shape)
+#        print('BP : Y.shape =',Y.shape)
+#        print('BP : YL =',YL.transpose(0,2,1))
+#        print('BP : Y =',Y.transpose(0,2,1))
+        d_Y=ann.g_d[-1](Y,YL)
+        d_A1=d_Y
+        d_Z1=(ann.g_d[1](Z1).transpose(0,2,1))@d_A1
         d_Z0=ann.g_d[0](Z0)*(w1.T@d_Z1)
-        d_w1=d_Z1@A0.transpose(0,2,1)
-        d_b1=d_Z1
-        d_b0=d_Z0
-        d_w1=np.mean(d_w1,axis=0)
-        d_b1=np.mean(d_b1,axis=0)
-        d_b0=np.mean(d_b0,axis=0)
-        grad={'d_w1':d_w1,'d_b1':d_b1,'d_b0':d_b0}
+        d_W1=d_Z1@A0.transpose(0,2,1)
+        d_B1=d_Z1
+        d_B0=d_Z0
+        d_w1=np.mean(d_W1,axis=0)
+        d_b1=np.mean(d_B1,axis=0)
+        d_b0=np.mean(d_B0,axis=0)
 
-#        print('YL shape:',YL.shape)
-#        print('Y shape:',Y.shape)
-#        print('d_A1 shape:',d_A1.shape)
-#        print('softmax_d(Z1) shape:',softmax_d(Z1).shape)
-#        print('d_Z1 shape:',d_Z1.shape)
-#        print('d_Z0 shape:',d_Z0.shape)
-#        print('A1 shape:',A1.shape)
-#        print('d_w1 shape:',d_w1.shape)
-#        print('d_b1 shape:',d_b1.shape)
-#        print('d_b0 shape:',d_b0.shape)
+#        print('BP : YL.shape=',YL.shape)
+#        print('BP : Y. shape=',Y.shape)
+#        print('BP : d_A1.shape=',d_A1.shape)
+#        print('BP : softmax_d(Z1).shape=',softmax_d(Z1).shape)
+#        print('BP : d_Z1.shape=',d_Z1.shape)
+#        print('BP : d_Z0.shape=',d_Z0.shape)
+#        print('BP : A1.shape=',A1.shape)
+#        print('BP : d_W1.shape=',d_W1.shape)
+#        print('BP : d_B1.shape=',d_B1.shape)
+#        print('BP : d_B0.shape=',d_B0.shape)
+#        print('BP : d_w1.shape=',d_w1.shape)
+#        print('BP : d_b1.shape=',d_b1.shape)
+#        print('BP : d_b0.shape=',d_b0.shape)
+        grad={'d_w1':d_w1,'d_b1':d_b1,'d_b0':d_b0}
         return grad
 
 
@@ -171,7 +229,7 @@ class ann:
         a1=op['a1'].reshape(-1,1)
         w1=params['w1']
         yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-        d_a1=ann.gl_d[0](y,yl)
+        d_a1=ann.g_d[-1](y,yl)
         d_z1=(softmax_d(z1).T)@d_a1
         d_z0=ann.g_d[0](z0)*(w1.T@d_z1)
         d_w1=d_z1@a0.T
@@ -189,9 +247,9 @@ class ann:
             for i in range(v.shape[0]):
                 for j in range(v.shape[1]):
                     v[i,j]-=h
-                    l1=ann.gl[0](x,pp,lab)
+                    l1=ann.g[-1](x,pp,lab)
                     v[i,j]+=2*h
-                    l2=ann.gl[0](x,pp,lab)
+                    l2=ann.g[-1](x,pp,lab)
                     v[i,j]-=h
                     slp=(l2-l1)/(2*h)
                     slope[k][i,j]=slp
@@ -269,8 +327,8 @@ def batch(params,batch=0,num_batch=0,lr=1,isplot=0,isslope=0):
     X=np.array(X)
     LAB=np.array(LAB)
     print('X shape:',X.shape)
-##    print(X[0].shape)
     print('LAB shape:',LAB.shape)
+#    print(X[0].shape)
 #    print(LAB[0].shape)
 #    ann.FP(X[0],params)
 #    if isslope==0 :
@@ -312,7 +370,7 @@ def batch(params,batch=0,num_batch=0,lr=1,isplot=0,isslope=0):
 #            grad=grad_function(x,params,lab)
 #            for k in grad.keys():
 #                grad_acc[k]+=grad[k]
-#            loss_acc+=ann.gl[0](x,params,lab)
+#            loss_acc+=ann.g[-1](x,params,lab)
 #        for k in grad_acc.keys():
 #            grad_acc[k]=grad_acc[k]/batch
 #        params=ann.update_params(params,grad_acc,lr)
@@ -322,19 +380,20 @@ def batch(params,batch=0,num_batch=0,lr=1,isplot=0,isslope=0):
 #        plt.plot(loss)
 #        plt.ylabel('Loss')
 #        plt.xlabel('Iterations /%s'%batch)
-#        var_title=(ann.g[0].__name__,ann.gl[0].__name__,lr)
+#        var_title=(ann.g[0].__name__,ann.g[-1].__name__,lr)
 #        title='Active = %s\n Loss function = %s\n Learning rate = %s\n'%var_title
 #        plt.title(title)
 #        plt.show()
 #    return params
 ## ==========
-def valid(params):
+def valid(params,n=0):
+    if n==0 : n=mnist.valid_img.shape[0]
     correct=[]
     loss_acc=0
-    for i in range(mnist.valid_img.shape[0]):
+    for i in range(n):
         x=mnist.valid_img[i]
         lab=mnist.valid_lab[i]
-        loss=ann.gl[0](x,params,lab)
+        loss=ann.g[-1](x,params,lab)
         loss_acc+=loss
         is1=(ann.fp(x,params).argmax()==lab)
         correct.append(is1)
@@ -363,7 +422,7 @@ def show(n=0):
 with open('p3.pkl', 'rb') as f: params_saved=pickle.load(f)
 nx=28*28; ny=10
 params_init={'b0':0*np.ones((nx,1)),'b1':0*np.ones((ny,1)),'w1':1*np.ones((ny,nx))}
-#params=params_saved
+params=params_saved
 params=params_init
 ## ==========
 
@@ -374,17 +433,22 @@ params=params_init
 #params=batch(params,100,300)
 #params=batch(params,200)
 #params=batch(params,200,0,.01,1)
-params=batch(params,5,3,.01,1)
-#(valid_per,loss_avg)=valid(params)
+#params=batch(params,3,2,.01,1)
+#params=batch(params,30,20,.01,1)
+#params=batch(params,30,200,.01,1)
+#params=batch(params,50,.01,1)
+params=batch(params,1,.01,1)
+#(valid_per,loss_avg)=valid(params,3)
+(valid_per,loss_avg)=valid(params)
 #show(num)
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
 
 ## ==========
-#num=np.random.randint(mnist.test_num)
-#x=mnist.train_img[num]
-#lab=mnist.train_lab[num]
+num=np.random.randint(mnist.test_num)
+x=mnist.train_img[num]
+lab=mnist.train_lab[num]
+show(num)
 #ann.cmp(x,params,lab,'d_w1',1e-15)
 ##ann.cmp(x,params,lab,'d_w1')
-#show(num)
 ## ==========

@@ -68,7 +68,7 @@ def sqr_loss_d(Y,YL):
 #    print('sqr_loss_d OUT shape=',OUT.shape)
 #    print('sqr_loss_d OUT =',OUT)
     return  OUT
-def log_loss(x,params,lab,a=1e-23):
+def log_loss(x,params,lab):
     y=ann.fp(x,params)
 #    print('log_loss: y.shape=',y.shape)
 #    print('log_loss: y.T=',y.T)
@@ -78,25 +78,26 @@ def log_loss(x,params,lab,a=1e-23):
 #    print('log_loss: (y+a).T=',(y+a).T)
 #    print('log_loss: np.log(y+a).T=',np.log(y+a).T)
 #    print('log_loss: (yl*np.log(y+a)).T=',(yl*np.log(y+a)).T)
-    l=-(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
+#    l=-(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
+    l=-yl*np.log(y)
 #    print('log_loss: l.T=',l.T)
 #    print('log_loss: l.shape=',l.shape)
     l=np.sum(l)
 #    print('log_loss: l=',l)
     return l
-def log_loss_d(Y,YL,a=1e-23):
+def log_loss_d(Y,YL):
     OUT=[]
 #    print('log_loss_d: Y.shape=',Y.shape)
 #    print('log_loss_d: YL.shape=',YL.shape)
     for i in range(len(Y)):
-        print('log_loss_d: YL[i].shape=',YL[i].shape)
-        print('log_loss_d: Y[i].shape=',Y[i].shape)
-        YT=-(YL[i]/(Y[i]+a)+(1-YL[i])/(1-Y[i]+a) )
-        OUT.append(YT)
+#        print('log_loss_d: YL[i].shape=',YL[i].shape)
+#        print('log_loss_d: Y[i].shape=',Y[i].shape)
+#        YT=-(YL[i]/(Y[i]+a)+(1-YL[i])/(1-Y[i]+a) )
+        OUT.append(-YL[i]/Y)
 #        print('log_loss_d: YT.shape=',YT.shape)
     OUT=np.array(OUT)
-    print('log_loss_d: OUT.shape=',OUT.shape)
-    print('log_loss_d: OUT.T=',OUT.T)
+#    print('log_loss_d: OUT.shape=',OUT.shape)
+#    print('log_loss_d: OUT.T=',OUT.T)
     return  OUT
 #    dl=-(yl/(y+a)+(1-yl)/(1-y+a))
 #    return dl
@@ -114,10 +115,8 @@ class ann:
 #    g=[relu,tanh];g_d[relu_d,tanh_d]
 #    gl=[log_loss,sqr_loss];gl_d=[log_loss_d,sqr_loss_d]
 #    gl=[sqr_loss,log_loss];gl_d=[sqr_loss_d,log_loss_d]
-#    g=(tanh,softmax,log_loss)
-#    g_d=(tanh_d,softmax_d,log_loss_d)
-    g=(tanh,softmax,sqr_loss)
-    g_d=(tanh_d,softmax_d,sqr_loss_d)
+    g=(tanh,softmax,log_loss);g_d=(tanh_d,softmax_d,log_loss_d)
+#    g=(tanh,softmax,sqr_loss);g_d=(tanh_d,softmax_d,sqr_loss_d)
 
     def FP(X,params,isop=0):
 #        print('FP X shape : ',X.shape)
@@ -131,7 +130,7 @@ class ann:
         A0=ann.g[0](Z0)
         Z1=w1@A0+b1
 #        Z1=A0@w1+b1
-        A1=softmax(Z1)
+        A1=ann.g[-2](Z1)
         Y=A1
 #        print('FP b0 shape: ',b0.shape)
 #        print('FP w1 shape: ',w1.shape)
@@ -158,7 +157,7 @@ class ann:
         z0=x+b0
         a0=ann.g[0](z0)
         z1=w1@a0+b1
-        a1=softmax(z1)
+        a1=ann.g[-2](z1)
         y=a1
         if isop==0:
             return y
@@ -194,9 +193,11 @@ class ann:
 #        print('BP : Y.shape =',Y.shape)
 #        print('BP : YL =',YL.transpose(0,2,1))
 #        print('BP : Y =',Y.transpose(0,2,1))
-        d_Y=ann.g_d[-1](Y,YL)
-        d_A1=d_Y
-        d_Z1=(ann.g_d[1](Z1).transpose(0,2,1))@d_A1
+#        d_Y=ann.g_d[-1](Y,YL)
+#        d_A1=d_Y
+#        d_Z1=(ann.g_d[1](Z1).transpose(0,2,1))@d_A1
+#        d_Z1=Y-YL
+        d_Z1=Y-YL
         d_Z0=ann.g_d[0](Z0)*(w1.T@d_Z1)
         d_W1=d_Z1@A0.transpose(0,2,1)
         d_B1=d_Z1
@@ -439,6 +440,7 @@ params=params_init
 #params=batch(params,30,20,.01,1)
 #params=batch(params,30,200,.01,1)
 params=batch(params,50,.01,1)
+#params=batch(params,1,.01,1)
 #(valid_per,loss_avg)=valid(params,3)
 (valid_per,loss_avg)=valid(params)
 #show(num)
