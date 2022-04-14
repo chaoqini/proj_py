@@ -23,7 +23,7 @@ def sigmod_d(x):
     return y-y*y
 
 def softmax(x): 
-    exp=np.exp(x-x.max())
+    exp=np.exp(x-x.max(),dtype=np.float32)
     return exp/exp.sum()
 
 def softmax_d(X): 
@@ -68,18 +68,27 @@ def sqr_loss_d(Y,YL):
 #    print('sqr_loss_d OUT shape=',OUT.shape)
 #    print('sqr_loss_d OUT =',OUT)
     return  OUT
-def log_loss(x,params,lab):
+def log_loss(x,params,lab,a=1e-30):
     y=ann.fp(x,params)
-#    print('log_loss: y.shape=',y.shape)
-#    print('log_loss: y.T=',y.T)
     yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#    print('log_loss: yl.shape=',yl.shape)
-#    print('log_loss: yl.T=',yl.T)
 #    print('log_loss: (y+a).T=',(y+a).T)
 #    print('log_loss: np.log(y+a).T=',np.log(y+a).T)
 #    print('log_loss: (yl*np.log(y+a)).T=',(yl*np.log(y+a)).T)
 #    l=-(yl*np.log(y+a)+(1-yl)*np.log(1-y+a))
+#    y=np.maximum(y,a)
+    print('log_loss: y.shape=',y.shape)
+    print('log_loss: y.T=',y.T)
+    print('log_loss: yl.shape=',yl.shape)
+    print('log_loss: yl.T=',yl.T)
+    y[y==0]=a
+    print('log_loss: y.shape=',y.shape)
+    print('log_loss: y.T=',y.T)
     l=-yl*np.log(y)
+    print('log_loss: y.shape=',y.shape)
+    print('log_loss: y.T=',y.T)
+    print('log_loss: l.shape=',l.shape)
+    print('log_loss: l.T=',l.T)
+
 #    print('log_loss: l.T=',l.T)
 #    print('log_loss: l.shape=',l.shape)
     l=np.sum(l)
@@ -425,7 +434,7 @@ def show(n=0):
 with open('p3.pkl', 'rb') as f: params_saved=pickle.load(f)
 nx=28*28; ny=10
 params_init={'b0':0*np.ones((nx,1)),'b1':0*np.ones((ny,1)),'w1':1*np.ones((ny,nx))}
-params=params_saved
+#params=params_saved
 params=params_init
 ## ==========
 
