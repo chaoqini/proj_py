@@ -69,22 +69,47 @@ def sqr_loss_d(Y,YL):
     return  OUT
 def log_loss(X,params,LAB,isvalid=0):
     Y=ann.FP(X,params)
+#    print('log_loss: LAB.shape=',LAB.shape)
+#    print('log_loss: Y.shape=',Y.shape)
     meye=np.array([np.eye(Y.shape[1])]*len(LAB))
+#    print('log_loss: meye.shape=',meye.shape)
+#    lab=np.squeeze(LAB)
     lab=LAB.reshape(-1)
     nbatch=np.arange(len(meye))
+#    print('log_loss: lab.shape=',lab.shape)
+#    print('log_loss: lab=',lab)
+#    print('log_loss: nbatch.shape=',nbatch.shape)
+#    print('log_loss: nbatch=',nbatch)
     YL=meye[nbatch,lab,:]
     YL=YL.reshape(YL.shape+(1,))
+#    print('log_loss: YL=',YL.T)
+#    print('log_loss: YL.shape=',YL.shape)
+#    print('log_loss: YL=',YL.T)
+#    print('log_loss: Y.shape=',Y.shape)
+#    print('log_loss: Y=',Y.T)
     LOSS=-YL*np.log(Y)
+#    print('log_loss: LOSS.shape=',LOSS.shape)
     cost=np.sum(LOSS)/len(LOSS)
+#    print('log_loss: cost.shape=',cost.shape)
+#    print('log_loss: cost=',cost)
     y1d_max=np.max(Y,axis=1,keepdims=1)
     Y=np.trunc(Y/y1d_max)
+#    print('log_loss: Y.shape=',Y.shape)
+#    print('log_loss: Y=',Y.T)
     cmp=Y==YL
+#    print('log_loss: cmp.shape=',cmp.shape)
+#    print('log_loss: cmp=',cmp.transpose(0,2,1))
     correct=np.trunc(np.sum(cmp,axis=1)/cmp.shape[1])
+#    print('log_loss: correct.shape=',correct.shape)
+#    print('log_loss: corrent=',correct)
     valid_per=correct.sum()/len(correct)
-#    if isvalid==0: 
-#        return cost
-#    else:
-    return (valid_per,correct,cost)
+#    print('valid percent is : %.2f%%'%(valid_per*100))
+#    loss_avg=loss_acc/(mnist.valid_img.shape[0])
+#    print('average loss is : %s'%(loss_avg))
+    if isvalid==0: 
+        return cost
+    else:
+        return (cost,valid_per,correct)
 #def log_loss(x,params,lab,a=1e-30):
 #    y=ann.fp(x,params)
 #    yl=np.eye(y.shape[1])[lab].reshape(-1,1)
@@ -187,19 +212,13 @@ class ann:
 ##        print(LAB[0])
 #        print(Y.shape)
 #        print(Y[0].shape)
-#        YL=[]
-##        for i in range(LAB.shape[0]):
-#        for i in range(len(LAB)):
-#            YL.append(np.eye(Y.shape[1])[LAB[i,0,0]].reshape(-1,1))
-##            print('BP : LAB[i,0,0] = ',LAB[i,0,0])
-##            print('BP : YL[i].T =',YL[i].T)
-#        YL=np.array(YL)
-        assert(Y.ndim==3)
-        meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-        lab=LAB.reshape(-1)
-        nbatch=np.arange(len(meye))
-        YL=meye[nbatch,lab,:]
-        YL=YL.reshape(YL.shape+(1,))
+        YL=[]
+#        for i in range(LAB.shape[0]):
+        for i in range(len(LAB)):
+            YL.append(np.eye(Y.shape[1])[LAB[i,0,0]].reshape(-1,1))
+#            print('BP : LAB[i,0,0] = ',LAB[i,0,0])
+#            print('BP : YL[i].T =',YL[i].T)
+        YL=np.array(YL)
 #        YL=np.squeeze(YL)
 #        print('BP : YL.shape =',YL.shape)
 #        print('BP : Y.shape =',Y.shape)
@@ -312,13 +331,11 @@ class ann:
 
 ## ==========
 #mnist.train_num=50000
-def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
-    if batch<1: batch=100
-    max_batches=int(len(mnist.train_img)/batch)
-    if batches<1: batches=max_batches
-    batches=min(max_batches,int(batches))
-    
-#    print('batch: batches=',batches)
+def batch(params,batch=0,num_batch=0,lr=1,isplot=0,isslope=0):
+    if batch==0: batch=100
+    max_num_batch=int(mnist.train_num/batch)
+    if num_batch<1: num_batch=max_num_batch
+    num_batch=min(max_num_batch,int(num_batch))
 #    print(mnist.train_img.shape)
 #    print(mnist.train_img.shape[0])
 #    print(mnist.train_img.shape[1],mnist.train_img.shape[2])
@@ -331,30 +348,17 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
 #    X=np.empty()
 #    X.append(mnist.train_img[0*batch:1*batch-1])
 #    X.append(mnist.train_img[1*batch:2*batch-1])
-    X=mnist.train_img[:batch*batches]
-    LAB=mnist.train_lab[:batch*batches]
-#    print('batch: X.shape=',X.shape)
-#    print('batch: LAB.shape=',LAB.shape)
-#    print('batch: X[].shape=',X.shape[1:3])
-    X=X.reshape((-1,batch)+X.shape[1:3])
-    LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
-#    LAB=LAB.reshape(batches,batch,-1,1)
-#    print(type((batches,num_batch)))
-#    print(type(X.shape[-3:-1]))
-#    X=X.reshape(batches,num_batch,-1,1)
-#    print('batch: X.shape=',X.shape)
-#    print('batch: LAB.shape=',LAB.shape)
-#    X=[];LAB=[]
-#    num_batch=int(min(num_batch,len(mnist.train_img)/batch))
-##    print('num_batch=',num_batch)
-##    print('batch=',batch)
-#    for n in range(num_batch):
-#        X.append(mnist.train_img[n*batch:(n+1)*batch])
-#        LAB.append(mnist.train_lab[n*batch:(n+1)*batch])
-##        print('X[n] shape:',X[n].shape)
-##        print('LAB[n] shape:',LAB[n].shape)
-#    X=np.array(X)
-#    LAB=np.array(LAB)
+    X=[];LAB=[]
+    num_batch=int(min(num_batch,len(mnist.train_img)/batch))
+#    print('num_batch=',num_batch)
+#    print('batch=',batch)
+    for n in range(num_batch):
+        X.append(mnist.train_img[n*batch:(n+1)*batch])
+        LAB.append(mnist.train_lab[n*batch:(n+1)*batch])
+#        print('X[n] shape:',X[n].shape)
+#        print('LAB[n] shape:',LAB[n].shape)
+    X=np.array(X)
+    LAB=np.array(LAB)
 #    print('X shape:',X.shape)
 #    print('LAB shape:',LAB.shape)
 #    print(X[0].shape)
@@ -373,22 +377,10 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
 
 #    ann.BP(X[0],params,LAB[0])
 #    print('len(X)=',len(X))
-    cost=[]
     for i in range(len(X)):
-        print('iteration number=:%s/%s',i/len(X))
+        print('iteration number=:',i)
         grad=ann.BP(X[i],params,LAB[i])
         params=ann.update_params(params,grad,lr)
-        (valid_per,correct,cost_i)=log_loss(X[i],params,LAB[i])
-        cost.append(cost_i)
-    cost=np.array(cost)
-    if isplot!=0:
-        plt.plot(cost)
-        plt.ylabel('Cost')
-        plt.xlabel('Iterations /%s'%i)
-        var_title=(ann.g[0].__name__,ann.g[-1].__name__,lr)
-        title='Active g[0]= %s\n Loss function g[-1]= %s\n Learning rate = %s\n'%var_title
-        plt.title(title)
-        plt.show()
     return params
 
 
@@ -427,6 +419,22 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
 #        plt.show()
 #    return params
 ## ==========
+#def valid(params,n=0):
+#    if n==0 : n=mnist.valid_img.shape[0]
+#    correct=[]
+#    loss_acc=0
+#    for i in range(n):
+#        x=mnist.valid_img[i]
+#        lab=mnist.valid_lab[i]
+#        loss=ann.g[-1](x,params,lab)
+#        loss_acc+=loss
+#        is1=(ann.fp(x,params).argmax()==lab)
+#        correct.append(is1)
+#    valid_per=correct.count(1)/len(correct)
+#    loss_avg=loss_acc/(mnist.valid_img.shape[0])
+#    print('valid percent is : %.2f%%'%(valid_per*100))
+#    print('average loss is : %s'%(loss_avg))
+#    return (valid_per,loss_avg)
 def valid(params,n=0):
     if n==0 : n=mnist.valid_img.shape[0]
     IMG=mnist.valid_img[0:n]
@@ -437,7 +445,7 @@ def valid(params,n=0):
 #    print('valid: valid_lab.shape',mnist.valid_img.shape)
 #    print('valid: IMG.shape',IMG.shape)
 #    print('valid: LAB.shape',LAB.shape)
-    (valid_per,correct,cost)=ann.g[-1](IMG,params,LAB,1)
+    (cost,valid_per,correct)=ann.g[-1](IMG,params,LAB,1)
 #    correct=[]
 #    loss_acc=0
 #    for i in range(n):
@@ -491,8 +499,16 @@ params=batch(params,0,0,.1,1)
 #params=batch(params,1,.01,1)
 #(valid_per,loss_avg)=valid(params,3)
 #(valid_per,corrent)=valid(params,12)
-#(valid_per,correct)=valid(params)
-#show()
+(valid_per,correct)=valid(params)
+#show(num)
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
 
+## ==========
+#num=np.random.randint(mnist.test_num)
+#x=mnist.train_img[num]
+#lab=mnist.train_lab[num]
+#show(num)
+#ann.cmp(x,params,lab,'d_w1',1e-15)
+##ann.cmp(x,params,lab,'d_w1')
+## ==========
