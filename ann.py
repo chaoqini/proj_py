@@ -16,7 +16,14 @@ def tanh_d(x):
     y=tanh(x)
     return 1-y**2
 def relu(x): return np.maximum(0,x)
-def relu_d(x): return (np.sign(x)+1)/2
+#def relu_d(x): return (np.sign(x)+1)/2
+def relu_d(x):
+    y=copy.deepcopy(x) 
+#    print('relu_d: x.shape=',x.shape)
+    y[y<0]=0
+    y[y>0]=1
+#    print('relu_d: y.shape=',y.shape)
+    return y
 def sigmod(x): return 1/(1+np.exp(-x))
 def sigmod_d(x):
     y=sigmod(x)
@@ -73,7 +80,9 @@ def log_loss(X,params,LAB,isvalid=0):
     lab=LAB.reshape(-1)
     nbatch=np.arange(len(meye))
     YL=meye[nbatch,lab,:]
-    YL=YL.reshape(YL.shape+(1,))
+    YL=YL.reshape(YL.shape+tuple([1]))
+#    print('log_loss: Y=',Y.T)
+#    print('log_loss: YL=',YL.T)
     LOSS=-YL*np.log(Y)
     cost=np.sum(LOSS)/len(LOSS)
     y1d_max=np.max(Y,axis=1,keepdims=1)
@@ -123,6 +132,7 @@ class ann:
 #    gl=[sqr_loss,log_loss];gl_d=[sqr_loss_d,log_loss_d]
 #    g=(tanh,softmax,sqr_loss);g_d=(tanh_d,softmax_d,sqr_loss_d)
     g=(tanh,softmax,log_loss);g_d=(tanh_d,softmax_d,log_loss_d)
+#    g=(relu,softmax,log_loss);g_d=(relu_d,softmax_d,log_loss_d)
 
     def FP(X,params,isop=0):
 #        print('FP X shape : ',X.shape)
@@ -375,7 +385,8 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
 #    print('len(X)=',len(X))
     cost=[]
     for i in range(len(X)):
-        print('iteration number=:%s/%s',i/len(X))
+        if i%(len(X)/10)==0 or i==len(X)-1:
+            print('iteration number=:%s/%s'%(i,len(X)))
         grad=ann.BP(X[i],params,LAB[i])
         params=ann.update_params(params,grad,lr)
         (valid_per,correct,cost_i)=log_loss(X[i],params,LAB[i])
@@ -429,8 +440,8 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
 ## ==========
 def valid(params,n=0):
     if n==0 : n=mnist.valid_img.shape[0]
-    IMG=mnist.valid_img[0:n]
-    LAB=mnist.valid_lab[0:n]
+    IMG=mnist.valid_img[:n]
+    LAB=mnist.valid_lab[:n]
 #    IMG=mnist.valid_img
 #    LAB=mnist.valid_lab
 #    print('valid: valid_img.shape',mnist.valid_img.shape)
@@ -485,13 +496,14 @@ params=params_init
 #params=batch(params,200)
 #params=batch(params,200,0,.01,1)
 #params=batch(params,3,2,.01,1)
-#params=batch(params,30,20,.01,1)
+params=batch(params,30,0,1,1)
 #params=batch(params,30,200,.01,1)
-params=batch(params,0,0,.1,1)
+#params=batch(params,10,0,.01,1)
+#params=batch(params,0,0,.1,0)
 #params=batch(params,1,.01,1)
 #(valid_per,loss_avg)=valid(params,3)
 #(valid_per,corrent)=valid(params,12)
-#(valid_per,correct)=valid(params)
+(valid_per,correct)=valid(params)
 #show()
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
