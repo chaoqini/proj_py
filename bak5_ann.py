@@ -16,10 +16,13 @@ def tanh_d(x):
     y=tanh(x)
     return 1-y**2
 def relu(x): return np.maximum(0,x)
+#def relu_d(x): return (np.sign(x)+1)/2
 def relu_d(x):
     y=copy.deepcopy(x) 
+#    print('relu_d: x.shape=',x.shape)
     y[y<0]=0
     y[y>0]=1
+#    print('relu_d: y.shape=',y.shape)
     return y
 def sigmod(x): return 1/(1+np.exp(-x))
 def sigmod_d(x):
@@ -27,33 +30,49 @@ def sigmod_d(x):
     return y-y*y
 
 def softmax(X): 
-    if X.ndim==2: X=X.reshape((1)+X.shape)
+    if X.ndim==2: X=X.reshape((1,)+X.shape)
     assert(X.ndim==3)
     exp=np.exp(X-np.max(X,axis=1,keepdims=1))
     expsum=np.sum(exp,axis=1,keepdims=1)
     return exp/expsum
 
 def softmax_d(X): 
+#    print('softmax : X shape:',X.shape)
     OUT=[]
     for i in range(len(X)):
+#        print('softmax : X[i].shape =',X[i].shape)
         y=softmax(X[i])    
+#        ysq=np.squeeze(y)
+#        diag=np.diag(ysq)
+#        diag=np.diag(ysq)
         diag=np.diag(np.squeeze(y))
         outer=np.outer(y,y)
         OUT.append(diag-outer)
+#       print('softmax : OUT[i].shape =',OUT[i].shape)
     OUT=np.array(OUT)
+#    print('softmax : OUT.shape =',OUT.shape)
+
+#    print('d_y shape:',d_y.shape)
+#    print('d_y.T shape:',d_y.T.shape)
+#    print('d_y.transpose(0,2,1) shape:',d_y.transpose(0,2,1).shape)
+#    exit(0)
     return OUT
 
-#def sqr_loss(x,params,lab):
-#    y=ann.fp(x,params)
-#    yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#    l=(y-yl).T@(y-yl)
-#    l=np.sum((y-yl)*(y-yl))
-#    return l
+def sqr_loss(x,params,lab):
+    y=ann.fp(x,params)
+    yl=np.eye(y.shape[0])[lab].reshape(-1,1)
+    l=(y-yl).T@(y-yl)
+    l=np.sum((y-yl)*(y-yl))
+    return l
 def sqr_loss_d(Y,YL):
     OUT=[]
+#    print('sqr_loss_d Y shape=',Y.shape)
+#    print('sqr_loss_d YL shape=',YL.shape)
     for i in range(len(YL)):
         OUT.append(2*(Y[i]-YL[i]))
     OUT=np.array(OUT)
+#    print('sqr_loss_d OUT shape=',OUT.shape)
+#    print('sqr_loss_d OUT =',OUT)
     return  OUT
 def log_loss(X,params,LAB,isvalid=0):
     Y=ann.FP(X,params)
@@ -62,6 +81,8 @@ def log_loss(X,params,LAB,isvalid=0):
     nbatch=np.arange(len(meye))
     YL=meye[nbatch,lab,:]
     YL=YL.reshape(YL.shape+tuple([1]))
+#    print('log_loss: Y=',Y.T)
+#    print('log_loss: YL=',YL.T)
     LOSS=-YL*np.log(Y)
     cost=np.sum(LOSS)/len(LOSS)
     y1d_max=np.max(Y,axis=1,keepdims=1)
@@ -69,13 +90,35 @@ def log_loss(X,params,LAB,isvalid=0):
     cmp=Y==YL
     correct=np.trunc(np.sum(cmp,axis=1)/cmp.shape[1])
     valid_per=correct.sum()/len(correct)
+#    if isvalid==0: 
+#        return cost
+#    else:
     return (valid_per,correct,cost)
+#def log_loss(x,params,lab,a=1e-30):
+#    y=ann.fp(x,params)
+#    yl=np.eye(y.shape[1])[lab].reshape(-1,1)
+#    l=-yl*np.log(y)
+#    l=np.sum(l)
+#    return l
 def log_loss_d(Y,YL):
     OUT=[]
+#    print('log_loss_d: Y.shape=',Y.shape)
+#    print('log_loss_d: YL.shape=',YL.shape)
     for i in range(len(Y)):
+#        print('log_loss_d: YL[i].shape=',YL[i].shape)
+#        print('log_loss_d: Y[i].shape=',Y[i].shape)
+#        YT=-(YL[i]/(Y[i]+a)+(1-YL[i])/(1-Y[i]+a) )
         OUT.append(-YL[i]/Y)
+#        print('log_loss_d: YT.shape=',YT.shape)
     OUT=np.array(OUT)
+#    print('log_loss_d: OUT.shape=',OUT.shape)
+#    print('log_loss_d: OUT.T=',OUT.T)
     return  OUT
+#    dl=-(yl/(y+a)+(1-yl)/(1-y+a))
+#    return dl
+#def log_loss_d(y,yl,a=1e-23):
+#    dl=-(yl/(y+a)+(1-yl)/(1-y+a))
+#    return dl
 ## ==========
 ## ==========
 
@@ -83,40 +126,87 @@ def log_loss_d(Y,YL):
 ## ==========
 ## ==========
 class ann:
+#    g=[tanh,relu];g_d=[tanh_d,relu_d]
+#    g=[relu,tanh];g_d[relu_d,tanh_d]
+#    gl=[log_loss,sqr_loss];gl_d=[log_loss_d,sqr_loss_d]
+#    gl=[sqr_loss,log_loss];gl_d=[sqr_loss_d,log_loss_d]
 #    g=(tanh,softmax,sqr_loss);g_d=(tanh_d,softmax_d,sqr_loss_d)
     g=(tanh,softmax,log_loss);g_d=(tanh_d,softmax_d,log_loss_d)
 #    g=(relu,softmax,log_loss);g_d=(relu_d,softmax_d,log_loss_d)
 
     def FP(X,params,isop=0):
+#        print('FP X shape : ',X.shape)
+#        X=X.transpose(0,2,1)
+#        print('FP X transpose shape : ',X.shape)
+#        print(X.shape)
         b0=params['b0'].reshape(-1,1)
         b1=params['b1'].reshape(-1,1)
         w1=params['w1']
         Z0=X+b0
         A0=ann.g[0](Z0)
         Z1=w1@A0+b1
+#        Z1=A0@w1+b1
         A1=ann.g[-2](Z1)
         Y=A1
+#        print('FP b0 shape: ',b0.shape)
+#        print('FP w1 shape: ',w1.shape)
+#        print('FP b1 shape: ',b1.shape)
+#        print('FP X shape: ',X.shape)
+#        print('FP Z0 shape: ',Z0.shape)
+#        print('FP A0 shape: ',A0.shape)
+#        print('FP Z1 shape: ',Z1.shape)
+#        print('FP A1 shape: ',A1.shape)
+#        print('FP Y shape: ',Y.shape)
         if isop==0:
             return Y
         else:
+#        op={'params':params,'z0':z0,'a0':a0,'z1':z1,'a1':a1}
             OP={'Z0':Z0,'A0':A0,'Z1':Z1,'A1':A1}
             return (Y,OP)
 
 
+#    def fp(x,params,isop=0):
+#        x=x.reshape(-1,1)
+#        b0=params['b0'].reshape(-1,1)
+#        b1=params['b1'].reshape(-1,1)
+#        w1=params['w1']
+#        z0=x+b0
+#        a0=ann.g[0](z0)
+#        z1=w1@a0+b1
+#        a1=ann.g[-2](z1)
+#        y=a1
+#        if isop==0:
+#            return y
+#        else:
+##        op={'params':params,'z0':z0,'a0':a0,'z1':z1,'a1':a1}
+#            op={'z0':z0,'a0':a0,'z1':z1,'a1':a1}
+#            return (y,op)
+
+
     def BP(X,params,LAB):
-        assert(X.ndim==3)
-        assert(LAB.ndim==3)
+#        print('BP X shape:',X.shape)
+#        X=X.transpose(0,2,1)
+#        print('BP X.transpose(0,2,1) shape:',X.shape)
         (Y,OP)=ann.FP(X,params,1)
-        assert(Y.ndim==3)
         Z0=OP['Z0']
         A0=OP['A0']
         Z1=OP['Z1']
         A1=OP['A1']
         w1=params['w1']
+#        print(LAB.shape)
+##        print(LAB[0])
+#        print(Y.shape)
+#        print(Y[0].shape)
+#        YL=[]
+##        for i in range(LAB.shape[0]):
+#        for i in range(len(LAB)):
+#            YL.append(np.eye(Y.shape[1])[LAB[i,0,0]].reshape(-1,1))
+##            print('BP : LAB[i,0,0] = ',LAB[i,0,0])
+##            print('BP : YL[i].T =',YL[i].T)
+#        YL=np.array(YL)
+        assert(Y.ndim==3)
         meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-        assert(meye.ndim==3)
         lab=LAB.reshape(-1)
-        assert(lab.ndim==3)
         nbatch=np.arange(len(meye))
         YL=meye[nbatch,lab,:]
         YL=YL.reshape(YL.shape+(1,))
@@ -238,8 +328,19 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
     if batches<1: batches=max_batches
     batches=min(max_batches,int(batches))
     
-    print('batch: batch=',batch)
-    print('batch: batches=',batches)
+#    print('batch: batches=',batches)
+#    print(mnist.train_img.shape)
+#    print(mnist.train_img.shape[0])
+#    print(mnist.train_img.shape[1],mnist.train_img.shape[2])
+#    num_batch=int(mnist.train_img.shape[0]/batch)
+#    nn=mnist.train_img.shape[0]-mnist.train_img.shape[0]%batch
+#    print(num_batch)
+#    X=np.zeros((nn,mnist.train_img.shape[1],mnist.train_img.shape[2])).reshape(-1,batch,1,28*28)
+#    print(X.shape)
+#    X[0]=mnist.train_img[0:batch]
+#    X=np.empty()
+#    X.append(mnist.train_img[0*batch:1*batch-1])
+#    X.append(mnist.train_img[1*batch:2*batch-1])
     X=mnist.train_img[:batch*batches]
     LAB=mnist.train_lab[:batch*batches]
 #    print('batch: X.shape=',X.shape)
@@ -281,10 +382,9 @@ def batch(params,batch=0,batches=0,lr=1,isplot=0,isslope=0):
 #    for i in 
 
 #    ann.BP(X[0],params,LAB[0])
-    print('batch: len(X)=',len(X))
+#    print('len(X)=',len(X))
     cost=[]
     for i in range(len(X)):
-        print('batch: i=',i)
         if i%(len(X)/10)==0 or i==len(X)-1:
             print('iteration number=:%s/%s'%(i,len(X)))
         grad=ann.BP(X[i],params,LAB[i])
