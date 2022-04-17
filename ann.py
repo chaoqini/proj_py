@@ -15,11 +15,20 @@ def tanh(x): return np.tanh(x)
 def tanh_d(x):
     y=tanh(x)
     return 1-y**2
-def relu(x): return np.maximum(0,x)
-def relu_d(x):
+#def relu(x): return np.maximum(0,x)
+def relu(x,kn=1e-3):
     y=copy.deepcopy(x) 
-    y[y<0]=0
+    y=y.reshape(-1)
+    y[y<0]=kn*y[y<0]
+    y[y>0]=y[y>0]
+    y=y.reshape(x.shape)
+    return y
+def relu_d(x,kn=1e-3):
+    y=copy.deepcopy(x) 
+    y=y.reshape(-1)
+    y[y<0]=kn
     y[y>0]=1
+    y=y.reshape(x.shape)
     return y
 def sigmod(x): return 1/(1+np.exp(-x))
 def sigmod_d(x):
@@ -62,6 +71,7 @@ def log_loss(X,params,LAB,isvalid=0):
     nbatch=np.arange(len(meye))
     YL=meye[nbatch,lab,:]
     YL=YL.reshape(YL.shape+tuple([1]))
+    print('log_loss: Y=',Y)
     LOSS=-YL*np.log(Y)
     cost=np.sum(LOSS)/len(LOSS)
     if isvalid==0:
@@ -88,8 +98,8 @@ def log_loss_d(Y,YL):
 ## ==========
 class ann:
 #    g=(tanh,softmax,sqr_loss);g_d=(tanh_d,softmax_d,sqr_loss_d)
-    g=(tanh,softmax,log_loss);g_d=(tanh_d,softmax_d,log_loss_d)
-#    g=(relu,softmax,log_loss);g_d=(relu_d,softmax_d,log_loss_d)
+#    g=(tanh,softmax,log_loss);g_d=(tanh_d,softmax_d,log_loss_d)
+    g=(relu,softmax,log_loss);g_d=(relu_d,softmax_d,log_loss_d)
 
     def fp(X,params,isop=0):
         if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
@@ -100,6 +110,7 @@ class ann:
         Z0=X+b0
         A0=ann.g[0](Z0)
         Z1=w1@A0+b1
+        print('fp: Z1=',Z1)
         A1=ann.g[-2](Z1)
         Y=A1
         if isop==0:
@@ -110,8 +121,8 @@ class ann:
 
 ## ==========
     def bp(X,params,LAB):
-        if X.ndim==2: X=X.reshape((1)+X.shape)
-        if LAB.ndim==2: LAB=LAB.reshape((1)+LAB.shape)
+        if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+        if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
         assert(X.ndim==3)
         assert(LAB.ndim==3)
         (Y,OP)=ann.fp(X,params,1)
@@ -140,67 +151,48 @@ class ann:
         return grad
 
 ## ==========
-    def slope(x,params,lab,h=1e-6):
-        print('slope:')
+    def slope(x,params,lab,dv=1e-5):
+#        print('slope:')
         slp={}
-        pt = copy.deepcopy(params) 
-#        for (k,v) in pt.items():
-#            k='d_'+k
-#            slp[k]=np.zeros(v.shape)
-#            for i in range(len(v)):
-#                for j in range(len(v[i])):
-#                    v[i,j]-=h
-#                    l1=ann.g[-1](x,pt,lab)
-#                    v[i,j]+=2*h
-#                    l2=ann.g[-1](x,pt,lab)
-#                    v[i,j]-=h
-#                    kk=(l2-l1)/(2*h)
-#                    slp[k][i,j]=kk
-#        assert(pt.values()==params.values())
-        print(pt.values()==params.values())
-#        print('pt[b1]=',pt['b1'])
-#        print('params[b1]=',params['b1'])
-#        print('pt[b0]=',pt['b0'])
-#        print('params[b0]=',params['b0'])
-#        print('pt[w1]=',pt['w1'])
-#        print('params[w1]=',params['w1'])
-#        tt=pt.keys()-params.keys()
-#        tt=cmp(pt,params)
-#        tt=pt.all()==params.all()
-#        print(tt)
-#        print(type(tt))
+        pt=copy.deepcopy(params) 
+        for (k,v) in pt.items():
+            k_d='d_'+k
+            slp[k_d]=np.zeros(v.shape)
+            for i in range(len(v)):
+                for j in range(len(v[i])):
+                    vb=v[i,j]
+                    v[i,j]=vb-dv
+                    l1=ann.g[-1](x,pt,lab)
+                    v[i,j]=vb+dv
+                    l2=ann.g[-1](x,pt,lab)
+                    v[i,j]=vb
+                    kk=(l2-l1)/(2*dv)
+                    slp[k_d][i,j]=kk
+        iseq=1
+        for k in params.keys():
+#            iseq=iseq&(np.any(pt[k]==params[k])) 
+            iseq=iseq&(np.all(pt[k]==params[k])) 
+        assert(iseq==1)
         return slp
-
-#    def k(x,params,lab,h=1e-6):
-#        slope={}
-#        pp = copy.deepcopy(params) 
-#        for (k,v) in pp.items():
-#            k='d_'+k
-#            slope[k]=np.zeros(v.shape)
-#            for i in range(v.shape[0]):
-#                for j in range(v.shape[1]):
-#                    v[i,j]-=h
-#                    l1=ann.g[-1](x,pp,lab)
-#                    v[i,j]+=2*h
-#                    l2=ann.g[-1](x,pp,lab)
-#                    v[i,j]-=h
-#                    slp=(l2-l1)/(2*h)
-#                    slope[k][i,j]=slp
-#        return slope
-#    def cmp(x,parms,lab,k='d_b1',h=1e-6):
-#        param_d=ann.bp(x,params,lab)
-#        param_k=ann.k(x,params,lab)
-#        ppd = param_d[k]
-#        ppk = param_k[k]
-#        (rd,cd) = ppd.shape
-#        (rk,ck) = ppk.shape
-#        (prd,pcd)=(int(rd/2),int(cd/2))
-#        (prk,pck)=(int(rk/2),int(ck/2))
-#        print('%s derivative:'%k)
-#        print(ppd[prd-5:prd+5,pcd-5:pcd+5])
-#        print('%s slope:'%k)
-#        print(ppk[prk-5:prk+5,pck-5:pck+5])
-#
+    def grad_check(x,params,lab,dv=1e-5):
+        print('grad_check:')
+        y1=ann.bp(x,params,lab)
+        y2=ann.slope(x,params,lab,dv)
+        abs_error={};ratio_error={}
+        for (k,v) in y1.items():
+            v1=v
+            v2=y2[k]
+            l2_v1=np.linalg.norm(v1)
+            l2_v2=np.linalg.norm(v2)
+            l2_v1d2=np.linalg.norm(v1-v2)
+            abs_error[k]=l2_v1d2
+            ratio_error[k]=l2_v1d2/(l2_v1+l2_v2)
+#            print('grad_check: %s abs_err= %s'%(k,abs_error[k]))
+#            print('grad_check: %s ratio_err= %s'%(k,ratio_error[k]))
+        print('grad_check: abs_error=',abs_error)
+        print('grad_check: ratio_error=',ratio_error)
+        return (ratio_error,abs_error)
+## ==========
     def update_params(params,grad,lr=1):
         b0=params['b0'].reshape(-1,1)
         b1=params['b1'].reshape(-1,1)
@@ -280,6 +272,8 @@ def show(n=-1):
 with open('p3.pkl', 'rb') as f: params_saved=pickle.load(f)
 nx=28*28; ny=10
 params_init={'b0':0*np.ones((nx,1)),'b1':0*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
+#params_init={'b0':1e-3*np.ones((nx,1)),'b1':1e-3*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
+#print('params_init[b0]=',params_init['b0'])
 #params=params_saved
 params=params_init
 ## ==========
@@ -295,20 +289,23 @@ params=params_init
 #params=batch(params,1,0,.1,1)
 #params=batch(params,30,200,.01,1)
 #params=batch(params,10,0,.01,1)
-#params=batch(params,0,0,.1,0)
-#params=batch(params,1,.01,1)
+params=batch(params,0,0,0,1)
+#params=batch(params)
+## ==========
 #(valid_per,loss_avg)=valid(params,3)
 #(valid_per,corrent)=valid(params,12)
-#(valid_per,correct)=valid(params)
+(valid_per,correct)=valid(params)
 
 ## ==========
-n=np.random.randint(mnist.test_num)
-x=mnist.test_img[0]
-lab=mnist.test_lab[0]
+num=np.random.randint(mnist.test_num)
+num=11
+x=mnist.test_img[num]
+lab=mnist.test_lab[num]
 #y=ann.fp(x,params)
 #y=np.argmax(y)
-k1=ann.slope(x,params,lab)
-print('k.keys()=',k1.keys())
+#k1=ann.slope(x,params,lab)
+ann.grad_check(x,params,lab,1e-3)
+#print('k.keys()=',k1.keys())
 #show()
 #with open('p3.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
