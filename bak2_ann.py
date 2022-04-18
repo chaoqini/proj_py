@@ -340,11 +340,11 @@ params=params_init
 #params=batch(params,30,200,.01,1)
 #params=batch(params,10,0,.01,1)
 #params=batch(params,0,0,0,1)
-#params=batch(params)
+params=batch(params)
 #params=batch(params,30,20,.01,1)
 #params=batch(params,3,2,.01,1)
 ## ==========
-#(valid_per,loss_avg)=valid(params,3)
+(valid_per,loss_avg)=valid(params,3)
 #(valid_per,corrent)=valid(params,12)
 #(valid_per,correct)=valid(params)
 

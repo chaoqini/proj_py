@@ -7,6 +7,7 @@ import copy
 from matplotlib import pyplot as plt 
 import pickle
 import sys
+import time
 
 
 ## ==========
@@ -154,14 +155,8 @@ class dnn:
         slp={}
         pt=copy.deepcopy(params) 
         for (k,v) in pt.items():
-#            print('slope: k=',k)
-#            print('slope: v=',v)
-            k_d='d_'+k
-#            print('slope: k_d=',k_d)
-            slp[k_d]=np.zeros(v.shape)
-#            slp[k_d]=[]
-#            for var in range(len(v)):
-#                print('slope: var=',var)
+            d_k='d_'+k
+            slp[d_k]=np.zeros(v.shape)
             for i in range(len(v)):
                 for j in range(len(v[i])):
                     vb=v[i,j]
@@ -171,7 +166,7 @@ class dnn:
                     l2=dnn.g[-1](x,pt,lab)
                     v[i,j]=vb
                     kk=(l2-l1)/(2*dv)
-                    slp[k_d][i,j]=kk
+                    slp[d_k][i,j]=kk
         iseq=1
         for k in params.keys():
 #            iseq=iseq&(np.any(pt[k]==params[k])) 
@@ -205,7 +200,7 @@ class dnn:
 
 ## ==========
 #mnist.train_num=50000
-def batch(params,batch=0,batches=0,lr=0,isplot=0):
+def batch(params,batch=0,batches=0,lr=0,isplot=0,istime=0):
     for k in params.keys():
         print( 'params %s.shape='%k,params[k].shape)
 #    for i in dnn.g:
@@ -223,12 +218,18 @@ def batch(params,batch=0,batches=0,lr=0,isplot=0):
     cost=[]
     print('Batch training running ...')
     for i in range(len(X)):
-        if i%(max(int(len(X)/10),1))==0 or i==len(X)-1:
+        pn=i%(max(int(len(X)/10),1))
+        if pn==0 or i==len(X)-1:
             print('iteration number = %s/%s'%(i,len(X)))
+            if istime!=0:tb=time.time()
         grad=dnn.bp(X[i],params,LAB[i])
         params=dnn.update_params(params,grad,lr)
-        (cost_i,valid_per,correct)=log_loss(X[i],params,LAB[i],1)
+        (cost_i,valid_per,correct)=dnn.g[-1](X[i],params,LAB[i],1)
         cost.append(cost_i)
+        if (pn==0 or i==len(X)-1) and istime!=0:
+            te=time.time()
+            tspd=(te-tb)*1000
+            print('the spending time of %s/%s batch is %s mS'%(i,len(X),tspd))
 #        print('batch: cost_i=',cost_i)
     cost=np.array(cost)
     if isplot!=0:
@@ -248,7 +249,27 @@ def valid(params,n=0):
     IMG=mnist.valid_img[:n]
     LAB=mnist.valid_lab[:n]
     (cost,valid_per,correct)=dnn.g[-1](IMG,params,LAB,1)
+    print('Valid L2 norm:')
+    print('L2_b0=',np.linalg.norm(params['b0'])/params['b0'].size)
+    print('L2_b1=',np.linalg.norm(params['b1'])/params['b1'].size)
+    print('L2_b2=',np.linalg.norm(params['b2'])/params['b2'].size)
+    print('L2_w1=',np.linalg.norm(params['w1'])/params['w1'].size)
+    print('L2_w2=',np.linalg.norm(params['w2'])/params['w2'].size)
     print('valid percent is : %.2f%%'%(valid_per*100))
+    return (valid_per,correct) 
+## ==========
+def valid_train(params,n=0):
+    if n==0 : n=mnist.train_img.shape[0]
+    IMG=mnist.train_img[:n]
+    LAB=mnist.train_lab[:n]
+    (cost,valid_per,correct)=dnn.g[-1](IMG,params,LAB,1)
+    print('Valid_train L2 norm:')
+    print('L2_b0=',np.linalg.norm(params['b0'])/params['b0'].size)
+    print('L2_b1=',np.linalg.norm(params['b1'])/params['b1'].size)
+    print('L2_b2=',np.linalg.norm(params['b2'])/params['b2'].size)
+    print('L2_w1=',np.linalg.norm(params['w1'])/params['w1'].size)
+    print('L2_w2=',np.linalg.norm(params['w2'])/params['w2'].size)
+    print('train_valid percent is : %.2f%%'%(valid_per*100))
     return (valid_per,correct) 
 ## ==========
 def show(n=-1):
@@ -269,7 +290,7 @@ def show(n=-1):
 
 
 ## ==========
-with open('dnn_p1.pkl', 'rb') as f: params_saved=pickle.load(f)
+with open('dnn_p2.pkl', 'rb') as f: params_saved=pickle.load(f)
 nx=28*28;ny1=500;ny2=10
 #params_init={'b0':0*np.ones((nx,1)),'b1':0*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
 b0=0*np.ones((nx,1))
@@ -280,8 +301,8 @@ w2=0.001*np.ones((ny2,ny1))
 params_init={'b0':b0,'b1':b1,'b2':b2,'w1':w1,'w2':w2}
 #params_init={'b0':1e-3*np.ones((nx,1)),'b1':1e-3*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
 #print('params_init[b0]=',params_init['b0'])
-#params=params_saved
-params=params_init
+params=params_saved
+#params=params_init
 ## ==========
 
 ## ==========
@@ -295,7 +316,8 @@ print('Training running ...')
 #params=batch(params,1,0,.1,1)
 #params=batch(params,30,200,.01,1)
 #params=batch(params,10,0,.01,1)
-params=batch(params,20,0,0,1)
+#params=batch(params,20,0,0,1)
+params=batch(params,0,0,0,1,1)
 #params=batch(params)
 #params=batch(params,20,40,.1,1)
 #params=batch(params,3,2,.01,1)
@@ -307,8 +329,11 @@ params=batch(params,20,0,0,1)
 print('Valid running ...')
 ## ==========
 (valid_per,correct)=valid(params)
+(valid_per2,correct2)=valid_train(params)
+## ==========
 
 ## ==========
+# ==========
 ## ==========
 ## grade check
 print('Grade check running ...')
@@ -320,10 +345,10 @@ lab=mnist.test_lab[num]
 #y=dnn.fp(x,params)
 #y=np.argmax(y)
 #k1=dnn.slope(x,params,lab)
-dnn.grad_check(x,params,lab,1e-6)
+#dnn.grad_check(x,params,lab,1e-6)
 #dnn.grad_check(x,params,lab)
 #print('k.keys()=',k1.keys())
 #show()
-with open('dnn_p1.pkl', 'wb') as f: pickle.dump(params,f)
+#with open('dnn_p2.pkl', 'wb') as f: pickle.dump(params,f)
 ## ==========
 
