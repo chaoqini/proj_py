@@ -17,14 +17,14 @@ def tanh_d(x):
     y=tanh(x)
     return 1-y**2
 #def relu(x): return np.maximum(0,x)
-def relu(x,kn=0):
+def relu(x,kn=1e-3):
     y=copy.deepcopy(x).reshape(-1)
     yt=x.reshape(-1)
     y[yt<0]=y[yt<0]*kn
     y[yt>=0]=y[yt>=0]
     y=y.reshape(x.shape)
     return y
-def relu_d(x,kn=0):
+def relu_d(x,kn=1e-3):
     y=copy.deepcopy(x).reshape(-1)
     yt=x.reshape(-1)
     y[yt<0]=kn
@@ -85,7 +85,6 @@ class dnn:
 #    g=(tanh,relu,softmax,log_loss);g_d=(tanh_d,relu_d,softmax_d,log_loss_d)
 #    g=(tanh,tanh,softmax,log_loss);g_d=(tanh_d,tanh_d,None,None)
     g=(tanh,relu,softmax,log_loss);g_d=(tanh_d,relu_d,None,None)
-#    g=(relu,relu,softmax,log_loss);g_d=(relu_d,relu_d,None,None)
 
     def fp(X,params,isop=0):
         if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
@@ -93,10 +92,9 @@ class dnn:
         b0=params['b0'].reshape(-1,1)
         b1=params['b1'].reshape(-1,1)
         b2=params['b2'].reshape(-1,1)
-        w0=params['w0']
         w1=params['w1']
         w2=params['w2']
-        Z0=w0@X+b0
+        Z0=X+b0
         A0=dnn.g[0](Z0)
         Z1=w1@A0+b1
         A1=dnn.g[1](Z1)
@@ -125,7 +123,6 @@ class dnn:
         A0=OP['A'][0]
         A1=OP['A'][1]
         A2=OP['A'][2]
-        w0=params['w0']
         w1=params['w1']
         w2=params['w2']
         meye=np.array([np.eye(Y.shape[1])]*len(LAB))
@@ -135,23 +132,20 @@ class dnn:
         nbatch=np.arange(len(meye))
         YL=meye[nbatch,lab,:]
         YL=YL.reshape(YL.shape+(1,))
-        d_Y=Y-YL
-        d_Z2=d_Y
+        d_Z2=Y-YL
         d_Z1=dnn.g_d[1](Z1)*(w2.T@d_Z2)
         d_Z0=dnn.g_d[0](Z0)*(w1.T@d_Z1)
         d_W2=d_Z2@A1.transpose(0,2,1)
         d_W1=d_Z1@A0.transpose(0,2,1)
-        d_W0=d_Z0@X.transpose(0,2,1)
         d_B2=d_Z2
         d_B1=d_Z1
         d_B0=d_Z0
-        d_b0=np.mean(d_B0,axis=0)
-        d_b1=np.mean(d_B1,axis=0)
-        d_b2=np.mean(d_B2,axis=0)
-        d_w0=np.mean(d_W0,axis=0)
-        d_w1=np.mean(d_W1,axis=0)
         d_w2=np.mean(d_W2,axis=0)
-        grad={'d_b0':d_b0,'d_b1':d_b1,'d_b2':d_b2,'d_w0':d_w0,'d_w1':d_w1,'d_w2':d_w2}
+        d_w1=np.mean(d_W1,axis=0)
+        d_b2=np.mean(d_B2,axis=0)
+        d_b1=np.mean(d_B1,axis=0)
+        d_b0=np.mean(d_B0,axis=0)
+        grad={'d_b0':d_b0,'d_b1':d_b1,'d_b2':d_b2,'d_w1':d_w1,'d_w2':d_w2}
 #        grad={'d_w':[0,d_w1,d_w2],'d_b':[d_b0,d_b1,d_b2]}
         return grad
 
@@ -221,7 +215,6 @@ def batch(params,batch=0,batches=0,lr=0,isplot=0,istime=0):
     LAB=mnist.train_lab[:batch*batches]
     X=X.reshape((-1,batch)+X.shape[1:3])
     LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
-    print('Input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
     cost=[]
     print('Batch training running ...')
     for i in range(len(X)):
@@ -260,7 +253,6 @@ def valid(params,n=0):
     print('L2_b0=',np.linalg.norm(params['b0'])/params['b0'].size)
     print('L2_b1=',np.linalg.norm(params['b1'])/params['b1'].size)
     print('L2_b2=',np.linalg.norm(params['b2'])/params['b2'].size)
-    print('L2_w0=',np.linalg.norm(params['w0'])/params['w0'].size)
     print('L2_w1=',np.linalg.norm(params['w1'])/params['w1'].size)
     print('L2_w2=',np.linalg.norm(params['w2'])/params['w2'].size)
     print('valid percent is : %.2f%%'%(valid_per*100))
@@ -275,7 +267,6 @@ def valid_train(params,n=0):
     print('L2_b0=',np.linalg.norm(params['b0'])/params['b0'].size)
     print('L2_b1=',np.linalg.norm(params['b1'])/params['b1'].size)
     print('L2_b2=',np.linalg.norm(params['b2'])/params['b2'].size)
-    print('L2_w0=',np.linalg.norm(params['w0'])/params['w0'].size)
     print('L2_w1=',np.linalg.norm(params['w1'])/params['w1'].size)
     print('L2_w2=',np.linalg.norm(params['w2'])/params['w2'].size)
     print('train_valid percent is : %.2f%%'%(valid_per*100))
@@ -299,20 +290,19 @@ def show(n=-1):
 
 
 ## ==========
-with open('dnn_p3.pkl', 'rb') as f: params_saved=pickle.load(f)
-(nx,nz0,nz1,nz2,ny)=(28*28,300,200,10,10)
+with open('dnn_p2.pkl', 'rb') as f: params_saved=pickle.load(f)
+nx=28*28;ny1=500;ny2=10
 #params_init={'b0':0*np.ones((nx,1)),'b1':0*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
-b0=np.ones((nz0,1))*1e-3
-b1=np.ones((nz1,1))*0
-b2=np.ones((nz2,1))*0
-w0=np.ones((nz0,nx))*1e-3
-w1=np.ones((nz1,nz0))*1e-3
-w2=np.ones((nz2,nz1))*1e-3
-params_init={'b0':b0,'b1':b1,'b2':b2,'w0':w0,'w1':w1,'w2':w2}
+b0=0*np.ones((nx,1))
+b1=0*np.ones((ny1,1))
+b2=0*np.ones((ny2,1))
+w1=0.001*np.ones((ny1,nx))
+w2=0.001*np.ones((ny2,ny1))
+params_init={'b0':b0,'b1':b1,'b2':b2,'w1':w1,'w2':w2}
 #params_init={'b0':1e-3*np.ones((nx,1)),'b1':1e-3*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
 #print('params_init[b0]=',params_init['b0'])
-#params=params_saved
-params=params_init
+params=params_saved
+#params=params_init
 ## ==========
 
 ## ==========
@@ -344,8 +334,6 @@ print('Valid running ...')
 
 ## ==========
 # ==========
-#with open('dnn_p1.pkl','wb') as f: pickle.dump(params,f);print('params write in %s'%f.name)
-## ==========
 ## ==========
 ## grade check
 print('Grade check running ...')
@@ -358,7 +346,9 @@ lab=mnist.test_lab[num]
 #y=np.argmax(y)
 #k1=dnn.slope(x,params,lab)
 #dnn.grad_check(x,params,lab,1e-6)
-dnn.grad_check(x,params,lab)
+#dnn.grad_check(x,params,lab)
 #print('k.keys()=',k1.keys())
 #show()
+#with open('dnn_p2.pkl', 'wb') as f: pickle.dump(params,f)
+## ==========
 
