@@ -1,16 +1,15 @@
-#!/usr/bin/env python
+##!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import numpy as np
 import mnist
-import copy
 from matplotlib import pyplot as plt 
 import pickle
 import sys
 import time
+import copy
 
 
-## ==========
 ## ==========
 def tanh(x): return np.tanh(x)
 def tanh_d(x):
@@ -18,14 +17,14 @@ def tanh_d(x):
     return 1-y**2
 #def relu(x): return np.maximum(0,x)
 def relu(x,kn=0):
-    y=copy.deepcopy(x).reshape(-1)
+    y=x.copy().reshape(-1)
     yt=x.reshape(-1)
     y[yt<0]=y[yt<0]*kn
     y[yt>=0]=y[yt>=0]
     y=y.reshape(x.shape)
     return y
 def relu_d(x,kn=0):
-    y=copy.deepcopy(x).reshape(-1)
+    y=x.copy().reshape(-1)
     yt=x.reshape(-1)
     y[yt<0]=kn
     y[yt>=0]=1
@@ -37,36 +36,15 @@ def softmax(X):
     exp=np.exp(X-np.max(X,axis=1,keepdims=1))
     expsum=np.sum(exp,axis=1,keepdims=1)
     return exp/expsum
-#def softmax_d(X): 
-#    OUT=[]
-#    for i in range(len(X)):
-#        y=softmax(X[i])    
-#        diag=np.diag(np.squeeze(y))
-#        outer=np.outer(y,y)
-#        OUT.append(diag-outer)
-#    OUT=np.array(OUT)
-#    return OUT
-#def sqr_loss(x,params,lab):
-#    y=dnn.fp(x,params)
-#    yl=np.eye(y.shape[0])[lab].reshape(-1,1)
-#    l=(y-yl).T@(y-yl)
-#    l=np.sum((y-yl)*(y-yl))
-#    return l
-#def sqr_loss_d(Y,YL):
-#    OUT=[]
-#    for i in range(len(YL)):
-#        OUT.append(2*(Y[i]-YL[i]))
-#    OUT=np.array(OUT)
-#    return  OUT
-def log_loss(X,params,LAB,isvalid=0):
-    Y=dnn.fp(X,params)
+def log_loss(X,LAB,params,g,isvalid=0):
+    Y=dnn.fp(X,params,g)
+#    print('log_loss: Y.shape=',Y.shape)
     meye=np.array([np.eye(Y.shape[1])]*len(LAB))
     lab=LAB.reshape(-1)
     nbatch=np.arange(len(meye))
     YL=meye[nbatch,lab,:]
     YL=YL.reshape(YL.shape+tuple([1]))
-#    print('log_loss: Y=',Y)
-    LOSS=-YL*np.log(Y)
+    LOSS=-np.sum(YL*np.log(Y),axis=1)
     cost=np.sum(LOSS)/len(LOSS)
     if isvalid==0:
         return cost
@@ -77,89 +55,76 @@ def log_loss(X,params,LAB,isvalid=0):
         correct=np.trunc(np.sum(cmp,axis=1)/cmp.shape[1])
         valid_per=correct.sum()/len(correct)
         return (cost,valid_per,correct)
-
-
 ## ==========
+
+
 ## ==========
 class dnn:
-#    g=(tanh,relu,softmax,log_loss);g_d=(tanh_d,relu_d,softmax_d,log_loss_d)
-#    g=(tanh,tanh,softmax,log_loss);g_d=(tanh_d,tanh_d,None,None)
-#    g=(tanh,relu,softmax,log_loss);g_d=(tanh_d,relu_d,None,None)
-    g=(relu,relu,softmax,log_loss);g_d=(relu_d,relu_d,None,None)
+    def init_params(lays=3,nnode=100,nx=28*28,ny=10,func=0,seed=0):
+#        print('init_params:')
+        np.random.seed(seed)
+        if func==0:  (func,func_d)=(relu,relu_d)
+        (nl,params_init,g,g_d)=([],{},[],[])
+        nl.append(nx)
+        for i in range(lays-1): nl.append(nnode)
+        nl.append(ny)
+        for i in range(lays):
+            bi=('b'+str(i))
+            wi=('w'+str(i))
+            params_init[bi]=np.ones((nl[i+1],1))*0
+            params_init[wi]=np.random.randn(nl[i+1],nl[i])*1e-3
+            g.append(func)
+            g_d.append(func_d)
+        g[-1]=softmax;g.append(log_loss)
+        params=copy.deepcopy(params_init)
+        return (params,params_init,g,g_d)
+    (params,params_init,g,g_d)=init_params()
 
-    def fp(X,params,isop=0):
-        if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-        assert(X.ndim==3)
-        b0=params['b0'].reshape(-1,1)
-        b1=params['b1'].reshape(-1,1)
-        b2=params['b2'].reshape(-1,1)
-        w0=params['w0']
-        w1=params['w1']
-        w2=params['w2']
-        Z0=w0@X+b0
-        A0=dnn.g[0](Z0)
-        Z1=w1@A0+b1
-        A1=dnn.g[1](Z1)
-        Z2=w2@A1+b2
-        A2=dnn.g[2](Z2)
-        Y=A2
-#        print('fp: Y=',Y)
-        if isop==0:
-            return Y
-        else:
-#            OP={'Z0':Z0,'A0':A0,'Z1':Z1,'A1':A1}
-            OP={'Z':[Z0,Z1,Z2],'A':[A0,A1,A2]}
-            return (Y,OP)
 
 ## ==========
-    def bp(X,params,LAB):
+    def fp(X,params,g,isop=0):
+        if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+        assert(X.ndim==3)
+        (l,OP,p)=(int(len(params)/2),{},params)
+        OP['A-1']=X
+        for i in range(l):
+            OP['Z'+str(i)]=p['w'+str(i)]@OP['A'+str(i-1)]+p['b'+str(i)]
+            OP['A'+str(i)]=g[i](OP['Z'+str(i)])
+        Y=OP['A'+str(l-1)]
+        if isop==0: 
+            return Y
+        else: 
+            return (Y,OP)
+## ==========
+    def bp(X,LAB,params,g,g_d):
         if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
         if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
-        assert(X.ndim==3)
-        assert(LAB.ndim==3)
-        (Y,OP)=dnn.fp(X,params,1)
-        assert(Y.ndim==3)
-        Z0=OP['Z'][0]
-        Z1=OP['Z'][1]
-        Z2=OP['Z'][2]
-        A0=OP['A'][0]
-        A1=OP['A'][1]
-        A2=OP['A'][2]
-        w0=params['w0']
-        w1=params['w1']
-        w2=params['w2']
+        assert(X.ndim==3); assert(LAB.ndim==3)
+        (Y,OP)=dnn.fp(X,params,g,1)
         meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-        assert(meye.ndim==3)
         lab=LAB.reshape(-1)
-        assert(lab.ndim==1)
+        assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
         nbatch=np.arange(len(meye))
         YL=meye[nbatch,lab,:]
-        YL=YL.reshape(YL.shape+(1,))
-        d_Y=Y-YL
-        d_Z2=d_Y
-        d_Z1=dnn.g_d[1](Z1)*(w2.T@d_Z2)
-        d_Z0=dnn.g_d[0](Z0)*(w1.T@d_Z1)
-        d_W2=d_Z2@A1.transpose(0,2,1)
-        d_W1=d_Z1@A0.transpose(0,2,1)
-        d_W0=d_Z0@X.transpose(0,2,1)
-        d_B2=d_Z2
-        d_B1=d_Z1
-        d_B0=d_Z0
-        d_b0=np.mean(d_B0,axis=0)
-        d_b1=np.mean(d_B1,axis=0)
-        d_b2=np.mean(d_B2,axis=0)
-        d_w0=np.mean(d_W0,axis=0)
-        d_w1=np.mean(d_W1,axis=0)
-        d_w2=np.mean(d_W2,axis=0)
-        grad={'d_b0':d_b0,'d_b1':d_b1,'d_b2':d_b2,'d_w0':d_w0,'d_w1':d_w1,'d_w2':d_w2}
-#        grad={'d_w':[0,d_w1,d_w2],'d_b':[d_b0,d_b1,d_b2]}
+        YL=YL.reshape(YL.shape+tuple([1]))
+        (l,d_,grad)=(int(len(params)/2),{},{})
+        for i in range(l-1,-1,-1):
+            (Zi,Zip1)=('Z'+str(i),'Z'+str(i+1))
+            (Ai,Ain1)=('A'+str(i),'A'+str(i-1))
+            (wi,wip1)=('w'+str(i),'w'+str(i+1))
+            bi=('b'+str(i))
+            if i==l-1: d_[Zi]=Y-YL
+            else: d_[Zi]=g_d[i](OP[Zi])*(params[wip1].T@d_[Zip1])
+            d_[wi]=d_[Zi]@OP[Ain1].transpose(0,2,1)
+            d_[bi]=d_[Zi]
+            grad['d_'+wi]=np.mean(d_[wi],axis=0)
+            grad['d_'+bi]=np.mean(d_[bi],axis=0)
         return grad
-
 ## ==========
-    def slope(x,params,lab,dv=1e-5):
+    def slope(x,lab,params,g,dv=1e-5):
 #        print('slope:')
         slp={}
-        pt=copy.deepcopy(params) 
+        pt=copy.deepcopy(params)
         for (k,v) in pt.items():
             d_k='d_'+k
             slp[d_k]=np.zeros(v.shape)
@@ -167,9 +132,9 @@ class dnn:
                 for j in range(len(v[i])):
                     vb=v[i,j]
                     v[i,j]=vb-dv
-                    l1=dnn.g[-1](x,pt,lab)
+                    l1=g[-1](x,lab,pt,g)
                     v[i,j]=vb+dv
-                    l2=dnn.g[-1](x,pt,lab)
+                    l2=g[-1](x,lab,pt,g)
                     v[i,j]=vb
                     kk=(l2-l1)/(2*dv)
                     slp[d_k][i,j]=kk
@@ -179,11 +144,11 @@ class dnn:
             iseq=iseq&(np.all(pt[k]==params[k])) 
         assert(iseq==1)
         return slp
-
-    def grad_check(x,params,lab,dv=1e-5):
+## ==========
+    def grad_check(x,lab,params,g,g_d,dv=1e-5):
 #        print('grad_check:')
-        y1=dnn.bp(x,params,lab)
-        y2=dnn.slope(x,params,lab,dv)
+        y1=dnn.bp(x,lab,params,g,g_d)
+        y2=dnn.slope(x,lab,params,g,dv)
         abs_error={};ratio_error={}
         for (k,v) in y1.items():
             v1=v
@@ -203,41 +168,67 @@ class dnn:
         for k in params.keys():
             params[k]-=lr*grad['d_'+k]
         return params
+    def update_params_adam(params,grad,lr,v,s,t=1):
+        (beta1,beta2,e)=(0.9,0.999,1e-8)
+        for k in params.keys():
+            v[k] = beta1*v[k]+(1-beta1)*grad['d_'+k]
+            s[k] = beta2*s[k]+(1-beta2)*grad['d_'+k]**2
+            vc_k = v[k]/(1-beta1**t)
+            sc_k = s[k]/(1-beta2**t)
+            adam_d_k = vc_k/(sc_k**0.5+e)
+            params[k]-=lr*adam_d_k
+        return (params,v,s)
+    def init_adam(params):
+        (v,s)=({},{})
+        for k in params.keys():
+            v[k] = np.zeros(params[k].shape)
+            s[k] = np.zeros(params[k].shape)
+        return (v,s)
+## ==========
     def normalize(X):
-        AX=mnist.train_img
+#        AX=mnist.train_img
+        e=1e-8 
+        AX=X
         mean=AX.mean()
         std=AX.std()
-        return (X-mean)/std
-
+        var=AX.var()
+        return (X-mean)/(var+e)
 ## ==========
 #mnist.train_num=50000
-def batch(params,batch=0,batches=0,lr=0,isplot=0,istime=0):
-    for k in params.keys():
-        print( 'params %s.shape='%k,params[k].shape)
-#    for i in dnn.g:
-    for i in range(len(dnn.g)):
-        print('active function g[%d] is:'%i,dnn.g[i].__name__)
-    if batch<1: batch=100
+def batch_train(params,g,g_d,lr0=0.01,klr=0.998,batch=20,batches=0,isplot=0,istime=0):
+#    if batch<1: batch=dnn.batch
     max_batches=int(len(mnist.train_img)/batch)
     if batches<1: batches=max_batches
     batches=min(max_batches,int(batches))
-    if lr==0: lr=1
     X=mnist.train_img[:batch*batches]
     LAB=mnist.train_lab[:batch*batches]
     X=X.reshape((-1,batch)+X.shape[1:3])
     X=dnn.normalize(X)
     LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
-    print('Input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
-    cost=[]
-    print('Batch training running ...')
+    print('Train layers =',int(len(params)/2))
+    print('Train learning rate lr0 =',lr0)
+    print('Train learning rate klr =',klr)
+    print('Train batch =',batch)
+    print('Train input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
+    for k in params.keys():
+        print( 'params %s.shape='%k,params[k].shape)
+    for i in range(len(g)):
+        print('active function g[%d] is:'%i,g[i].__name__)
+    (cost,lra)=([],[])
+    print('Training bath running ...')
     for i in range(len(X)):
         pn=i%(max(int(len(X)/10),1))
         if pn==0 or i==len(X)-1:
             print('Training iteration number = %s/%s'%(i,len(X)))
             if istime!=0:tb=time.time()
-        grad=dnn.bp(X[i],params,LAB[i])
-        params=dnn.update_params(params,grad,lr)
-        (cost_i,valid_per,correct)=dnn.g[-1](X[i],params,LAB[i],1)
+        grad=dnn.bp(X[i],LAB[i],params,g,g_d)
+#        lr=lr0/(1+i/100)
+        lr=lr0*klr**i
+        lra.append(lr)
+#        params=dnn.update_params(params,grad,lr)
+        if i==0: (v,s)=dnn.init_adam(params)
+        else: (params,v,s)=dnn.update_params_adam(params,grad,lr,v,s,i)
+        (cost_i,valid_per,correct)=g[-1](X[i],LAB[i],params,g,1)
         cost.append(cost_i)
         if (pn==0 or i==len(X)-1) and istime!=0:
             te=time.time()
@@ -245,19 +236,29 @@ def batch(params,batch=0,batches=0,lr=0,isplot=0,istime=0):
             print('the spending time of %s/%s batch is %s mS'%(i,len(X),tspd))
 #        print('batch: cost_i=',cost_i)
     cost=np.array(cost)
+    lra=np.array(lra)
+#    cost=np.array(cost)[50:-1]
     if isplot!=0:
+        plt.figure()
+        plt.subplot(212)
         plt.plot(cost)
         plt.ylabel('Cost')
-        plt.xlabel('Iterations /%s'%i)
-        var_title=(dnn.g[0].__name__,dnn.g[1].__name__,dnn.g[-1].__name__,lr)
-        title='Active g[0]= %s\n Active g[1]= %s\n Loss function g[-1]= %s\n \
-        Learning rate = %s\n'%var_title
-        plt.title(title)
+        plt.subplot(211)
+        plt.plot(lra)
+        plt.ylabel('lra')
+        plt.xlabel('Iterations *%s'%batch)
+        var_title=(lr0,klr,batch)
+        title='lr0=%s\n klr=%s\n batch=%s\n'%var_title
+        plt.title(title,loc='right upper')
+#        plt.title(title,loc='right')
+#        plt.legend(loc='best')
+#        plt.legend(loc='eastoutside')
+#        plt.legend(loc='lower right')
         plt.show()
     return params
 
 ## ==========
-def valid(params,batch=0,batches=0):
+def valid(params,g,batch=0,batches=0):
     if batch<1: batch=100
     max_batches=int(len(mnist.valid_img)/batch)
     if batches<1: batches=max_batches
@@ -265,55 +266,67 @@ def valid(params,batch=0,batches=0):
     X=mnist.valid_img[:batch*batches]
     LAB=mnist.valid_lab[:batch*batches]
     X=X.reshape((-1,batch)+X.shape[1:3])
-    X=dnn.normalize(X)
+#    X=dnn.normalize(X)
     LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
-    print('valid: X.shape=',X.shape)
-    print('valid: LAB.shape=',LAB.shape)
-#    (cost,valid_per,correct)=dnn.g[-1](X,params,LAB,1)
-    cost=[]
-    valid_per=[]
-    correct=[]
-    print('Batch training running ...')
+    print('Valid Input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
+    (cost,valid_per,correct)=([],[],[])
+    print('Valid batch running ...')
     for i in range(len(X)):
         pn=i%(max(int(len(X)/10),1))
         if pn==0 or i==len(X)-1:
             print('Valid iteration number = %s/%s'%(i,len(X)))
-        (cost_i,valid_per_i,correct_i)=dnn.g[-1](X[i],params,LAB[i],1)
+        (cost_i,valid_per_i,correct_i)=g[-1](X[i],LAB[i],params,g,1)
         cost.append(cost_i)
         valid_per.append(valid_per_i)
         correct.append(correct_i)
     cost=np.array(cost)
     valid_per=np.array(valid_per)
     correct=np.array(correct)
-    print('valid: cost.shape=',cost.shape)
-    print('valid: valid_per.shape=',valid_per.shape)
-    print('valid: correct.shape=',correct.shape)
     print('Valid L2 norm:')
     valid_per=valid_per.sum()/len(valid_per)
     for (k,v) in params.items():
         L2=np.linalg.norm(v)/v.size
-        print('L2_normalize_%s = %s'%(k,L2))
-    print('valid percent is : %.2f%%'%(valid_per*100))
+        print('Valid L2_normalize_%s = %s'%(k,L2))
+    print('Valid percent is : %.2f%%'%(valid_per*100))
     return (valid_per,correct) 
 ## ==========
-def valid_train(params,n=0):
-    if n==0 : n=mnist.train_img.shape[0]
-    IMG=mnist.train_img[:n]
-    LAB=mnist.train_lab[:n]
-    X=dnn.normalize(IMG)
-    (cost,valid_per,correct)=dnn.g[-1](X,params,LAB,1)
-    print('Valid_train L2 norm:')
+def valid_train(params,g,batch=0,batches=0):
+    if batch<1: batch=100
+    max_batches=int(len(mnist.train_img)/batch)
+    if batches<1: batches=max_batches
+    batches=min(max_batches,int(batches))
+    X=mnist.train_img[:batch*batches]
+    LAB=mnist.train_lab[:batch*batches]
+    X=X.reshape((-1,batch)+X.shape[1:3])
+#    X=dnn.normalize(X)
+    LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
+    print('Valid_train Input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
+    (cost,valid_per,correct)=([],[],[])
+    print('Valid_train batch running ...')
+    for i in range(len(X)):
+        pn=i%(max(int(len(X)/10),1))
+        if pn==0 or i==len(X)-1:
+            print('Valid_train iteration number = %s/%s'%(i,len(X)))
+        (cost_i,valid_per_i,correct_i)=g[-1](X[i],LAB[i],params,g,1)
+        cost.append(cost_i)
+        valid_per.append(valid_per_i)
+        correct.append(correct_i)
+    cost=np.array(cost)
+    valid_per=np.array(valid_per)
+    correct=np.array(correct)
+    valid_per=valid_per.sum()/len(valid_per)
     for (k,v) in params.items():
         L2=np.linalg.norm(v)/v.size
-        print('L2_normalize_%s = %s'%(k,L2))
-    print('train_valid percent is : %.2f%%'%(valid_per*100))
+        print('Valid_train L2_normalize_%s = %s'%(k,L2))
+    print('Valid_train percent is : %.2f%%'%(valid_per*100))
     return (valid_per,correct) 
 ## ==========
-def show(n=-1):
+## ==========
+def show(params,g,n=-1):
     if n==-1: n=np.random.randint(mnist.test_num)
     x=mnist.test_img[n]
     lab=mnist.test_lab[n].squeeze()
-    y=dnn.fp(x,params)
+    y=dnn.fp(x,params,g)
     y=np.argmax(y)
     print('Real lab number is :\t%s'%lab)
     print('Precdict number is :\t%s'%y)
@@ -326,68 +339,43 @@ def show(n=-1):
 
 
 
-## ==========
-with open('dnn_p1.pkl', 'rb') as f: params_saved=pickle.load(f)
-(nx,nz0,nz1,nz2,ny)=(28*28,28*28,100,28*28,10)
-#params_init={'b0':0*np.ones((nx,1)),'b1':0*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
-b0=np.ones((nz0,1))*0
-b1=np.ones((nz1,1))*0
-b2=np.ones((nz2,1))*0
-w0=np.ones((nz0,nx))*1e-3
-w1=np.ones((nz1,nz0))*1e-3
-w2=np.ones((nz2,nz1))*1e-3
-params_init={'b0':b0,'b1':b1,'b2':b2,'w0':w0,'w1':w1,'w2':w2}
-#params_init={'b0':1e-3*np.ones((nx,1)),'b1':1e-3*np.ones((ny,1)),'w1':0.01*np.ones((ny,nx))}
-#print('params_init[b0]=',params_init['b0'])
-#params=params_saved
-params=params_init
-## ==========
+def train_and_valid(params,g,g_d,lr0=0.01,klr=0.998,batch=20,batches=0,isplot=0,istime=0,ischeck=0):
+    print('Training running ...')
+    params=batch_train(params,g,g_d,lr0,klr,batch,batches,isplot,istime)
+    print('Valid running ...')
+    (valid_per,correct)=valid(params,g)
+    (valid_per2,correct2)=valid_train(params,g)
+    if ischeck==1:
+        print('Grade check running ...')
+        dnn.grad_check(x,params,lab)
+        print('Grade check end.')
+    return (valid_per,valid_per2)
 
-## ==========
-##  training
-print('Training running ...')
-## ==========
-#params=batch(params,0,0,0,1)
-#params=batch(params,100,300)
-#params=batch(params,200)
-#params=batch(params,200,0,.01,1)
-#params=batch(params,1,0,.1,1)
-#params=batch(params,30,200,.01,1)
-#params=batch(params,10,0,.01,1)
-#params=batch(params,20,0,0,1)
-#params=batch(params,0,0,0,1,1)
-#params=batch(params,20,0,0,1,1)
-#params=batch(params)
-#params=batch(params,20,40,.1,1)
-#params=batch(params,3,2,.01,1)
-## ==========
-#(valid_per,loss_avg)=valid(params,3)
-#(valid_per,corrent)=valid(params,12)
-## ==========
-## valid
-print('Valid running ...')
-## ==========
-(valid_per,correct)=valid(params)
-#(valid_per2,correct2)=valid_train(params)
-## ==========
+def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=0.01,klr=0.998,batch=20,batches=0):
+    print('heyperparams_test:')
+    (v1a,v2a)=([],[])
+    for i in range(nloop):
+        print('hyperparams_test runing iteration=%s/%s'%(i+1,nloop))
+        params=copy.deepcopy(params_init)
+        lri=lr0*(1-i/nloop)
+        (v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1)
+        v1a.append(v1)
+        v2a.append(v2)
+    v1a=np.array(v1a)
+    v2a=np.array(v2a)
+    plt.figure()
+    plt.subplot(211)
+    plt.plot(v1a)
+    plt.ylabel('v1a')
+    plt.subplot(212)
+    plt.plot(v2a)
+    plt.ylabel('v2a')
+    plt.legend(loc='best')
+    plt.show()
 
-## ==========
-# ==========
-#with open('dnn_p1.pkl','wb') as f: pickle.dump(params,f);print('params write in %s'%f.name)
-## ==========
-## ==========
-## grade check
-print('Grade check running ...')
-## ==========
-num=np.random.randint(mnist.test_num)
-num=11
-x=mnist.test_img[num]
-lab=mnist.test_lab[num]
-#y=dnn.fp(x,params)
-#y=np.argmax(y)
-#k1=dnn.slope(x,params,lab)
-#dnn.grad_check(x,params,lab,1e-6)
-#dnn.grad_check(x,params,lab)
-#print('k.keys()=',k1.keys())
-#show()
+#(params,params_init,g,g_d)=dnn.init_params(lays=6,nnode=200)
+#hyperparams_test(params,g,g_d,nloop=6,lr0=0.003,klr=0.998,batch=30)
+
+
+
 
