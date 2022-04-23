@@ -196,7 +196,7 @@ class dnn:
 #        return (X-mean)/(var+e)
 ## ==========
 #mnist.train_num=50000
-def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0,istime=0):
+def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,istime=0):
 #    if batch<1: batch=dnn.batch
     max_batches=int(len(mnist.train_img)/batch)
     if batches<1: batches=max_batches
@@ -336,7 +336,7 @@ def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0
         print('Grade check end.')
     return (lrend,valid_per,valid_per2)
 
-def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=20,batches=0,isupdate=0):
+def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0):
     print('heyperparams_test: ...')
     print('heyperparams_test: layers =',int(len(params)/2))
     print('heyperparams_test: learning rate lr0 =',lr0)
