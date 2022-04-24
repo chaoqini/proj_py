@@ -192,8 +192,8 @@ class dnn:
         mean=AX.mean()
         std=AX.std()
         var=AX.var()
-        return (X-mean)/(std+e)
-#        return (X-mean)/(var+e)
+#        return (X-mean)/(std+e)
+        return (X-mean)/(var+e)**0.5
 ## ==========
 #mnist.train_num=50000
 def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,istime=0):

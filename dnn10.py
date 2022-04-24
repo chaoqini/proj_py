@@ -192,10 +192,11 @@ class dnn:
         mean=AX.mean()
         std=AX.std()
         var=AX.var()
-        return (X-mean)/(var+e)
+#        return (X-mean)/(std+e)
+        return (X-mean)/(var+e)**0.5
 ## ==========
 #mnist.train_num=50000
-def batch_train(params,g,g_d,lr0=0.01,klr=0.998,batch=20,batches=0,isplot=0,istime=0):
+def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,istime=0):
 #    if batch<1: batch=dnn.batch
     max_batches=int(len(mnist.train_img)/batch)
     if batches<1: batches=max_batches
@@ -240,7 +241,7 @@ def batch_train(params,g,g_d,lr0=0.01,klr=0.998,batch=20,batches=0,isplot=0,isti
         plt.ylabel('Cost')
         plt.xlabel('Iterations *%s'%batch)
         var_title=(lr0,klr,batch)
-        title='lr0=%s\n klr=%s\n batch=%s\n'%var_title
+        title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title
         plt.title(title,loc='left')
         plt.show()
     return (params,lra[-1])
@@ -325,7 +326,7 @@ def show(params,g,n=-1):
 ## ==========
 ## ==========
 
-def train_and_valid(params,g,g_d,lr0=0.01,klr=0.998,batch=20,batches=0,isplot=0,istime=0,ischeck=0):
+def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0,istime=0,ischeck=0):
     (params,lrend)=batch_train(params,g,g_d,lr0,klr,batch,batches,isplot,istime)
     (valid_per,correct)=valid(params,g)
     (valid_per2,correct2)=valid_train(params,g)
@@ -335,7 +336,7 @@ def train_and_valid(params,g,g_d,lr0=0.01,klr=0.998,batch=20,batches=0,isplot=0,
         print('Grade check end.')
     return (lrend,valid_per,valid_per2)
 
-def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=0.01,klr=0.998,batch=20,batches=0,isupdate=0):
+def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0):
     print('heyperparams_test: ...')
     print('heyperparams_test: layers =',int(len(params)/2))
     print('heyperparams_test: learning rate lr0 =',lr0)
