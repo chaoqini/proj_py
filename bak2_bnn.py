@@ -76,8 +76,6 @@ class bnn:
 			g_d.append(func_d)
 		g[-1]=softmax;g.append(cross_entropy)
 		params=copy.deepcopy(params_init)
-#		for k in params.keys():
-#			print('params[%s].shape=%s'%(k,params[k].shape))
 		return (params,params_init,g,g_d)
 	(params,params_init,g,g_d)=init_params()
 
@@ -132,19 +130,18 @@ class bnn:
 			ui=OP['u'+str(i)]
 			vi=OP['v'+str(i)]
 			Xi=OP['X'+str(i)]
-			Ain1=OP['A'+str(i-1)]
-			if i>0: Yin1=OP['Y'+str(i-1)]
+			if i>0: Yin1=OP['Y'+str(i-1)]; Ain1=OP['A'+str(i-1)]
 			if i==l-1: d_Yi=Y-YL
 			else: d_Yi=d_['Y'+str(i)]
 			d_Xi=gamai*d_Yi
 			mi=Xi.shape[1]
 			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
 			d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
-			d_Ain1=wi.T@d_Zi
 			if i>0:
+				d_Ain1=wi.T@d_Zi
 				d_Yin1=g_d[i](Yin1)*d_Ain1
 				d_['Y'+str(i-1)]=d_Yin1
-			d_wi=d_Zi@Ain1.transpose(0,2,1)
+				d_wi=d_Zi@Ain1.transpose(0,2,1)
 			d_bi=d_Zi
 			d_gamai=d_Yi*Xi
 			d_betai=d_Yi
@@ -202,15 +199,7 @@ class bnn:
 		return params
 	def update_params_adam(params,grad,lr,v,s,t=1):
 		(beta1,beta2,e)=(0.9,0.999,1e-8)
-#		print('update_params_adam: type(params)=',type(params))
-#		print('update_params_adam: params.keys()=',params.keys())
 		for k in params.keys():
-#			print('update_params_adam: k=',k)
-#			print('update_params_adam: params[k]=',params[k])
-#			print('update_params_adam: params[%s].shape='%k,params[k].shape)
-#			print('update_params_adam: v[%s].shape='%k,v[k].shape)
-#			print('update_params_adam: s[%s].shape='%k,s[k].shape)
-#			print('update_params_adam: grad[d_%s].shape='%k,grad['d_'+k].shape)
 			v[k] = beta1*v[k]+(1-beta1)*grad['d_'+k]
 			s[k] = beta2*s[k]+(1-beta2)*grad['d_'+k]**2
 			vc_k = v[k]/(1-beta1**t)
@@ -244,7 +233,7 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 	X=mnist.train_img[:batch*batches]
 	LAB=mnist.train_lab[:batch*batches]
 	X=X.reshape((-1,batch)+X.shape[1:3])
-#	X=bnn.normalize(X)
+	X=bnn.normalize(X)
 	LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
 	print('Train input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
 	(cost,lra)=([],[])
@@ -371,15 +360,13 @@ def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0
 	(valid_per2,correct2)=valid_train(params,g)
 	if ischeck==1:
 		print('Grade check running ...')
-#		if n==-1: n=np.random.randint(mnist.test_num)
-		x=mnist.test_img[0]
 		bnn.grad_check(x,params,lab)
 		print('Grade check end.')
 	return (lrend,valid_per,valid_per2)
 
 def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0):
 	print('heyperparams_test: ...')
-	print('heyperparams_test: layers =',int(len(params)/4))
+	print('heyperparams_test: layers =',int(len(params)/2))
 	print('heyperparams_test: learning rate lr0 =',lr0)
 	print('heyperparams_test: learning rate klr =',klr)
 	print('heyperparams_test: batch =',batch)
@@ -403,7 +390,6 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 			L2=np.linalg.norm(v)/v.size
 			print('Hyperparams_test: L2_normalize_%s = %.2e'%(k,L2))
 		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1)
-#		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1,ischeck=1)
 		v1a.append(v1)
 		v2a.append(v2)
 #		 lr=lr0*klr**i
@@ -420,8 +406,9 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 	plt.legend(loc='best')
 	plt.show()
 
-#(params,params_init,g,g_d)=bnn.init_params(lays=2,nnode=100)
-#hyperparams_test(params,params_init,g,g_d,nloop=9,lr0=2e-3,klr=0.9995,batch=40,isupdate=1)
+(params,params_init,g,g_d)=bnn.init_params(lays=2,nnode=100)
+hyperparams_test(params,params_init,g,g_d,nloop=9,lr0=2e-3,klr=0.9995,batch=40,isupdate=1)
+#hyperparams_test(params,params_init,g,g_d,nloop=6,lr0=2e-3,klr=0.9995,batch=30)
 
 
 
