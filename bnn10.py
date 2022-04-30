@@ -280,17 +280,16 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 		plt.subplot(312)
 		plt.plot(cost)
 		plt.ylabel('Cost')
-		plt.xlabel('Iterations *%s'%batch)
 		var_title=(lr0,klr,batch)
 		title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title
 		plt.title(title,loc='left')
+		plt.figure()
 		i=0
 		for k in l2_grad.keys():
 			i=i+1
 #			if k[2]=='w' or k[2]=='g':
 			if 'w' in k or 'beta' in k:
-#				plt.subplot(len(l2_grad),1,i)
-				plt.figure()
+				plt.subplot(len(l2_grad),1,i)
 				plt.plot(bnn.l2_grad[k])
 				plt.ylabel(k[2:])
 		plt.xlabel('Iterations *%s'%batch)
