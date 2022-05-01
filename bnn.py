@@ -287,8 +287,8 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 		i=0
 		for k in l2_grad.keys():
 			i=i+1
-#			if k[2]=='w' or k[2]=='g':
-			if 'w' in k or 'beta' in k:
+#			if 'w' in k or 'beta' in k:
+			if not(k[2]=='b' and k[3].isdigit()):
 #				plt.subplot(len(l2_grad),1,i)
 				plt.figure()
 				plt.plot(bnn.l2_grad[k])
