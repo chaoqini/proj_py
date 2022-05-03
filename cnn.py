@@ -124,6 +124,23 @@ def img2d_convolution(img,kfilter):
 	kcols=k1r@cols
 	kcols=kcols.reshape(kcols.shape[0],kcols.shape[-1])
 	return kcols
+def img3d_convolution(X,kfilter):
+	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+	assert(X.ndim==3)
+	(h,w)=X.shape[1:3]
+	kf=kfilter.shape[1]
+	k1r=kfilter.reshape(1,-1)
+	p=int(k/2)
+	XP=np.pad(X,((0,0),(p,p),(p,p)))
+	nr_cols=XP.shape[1]-kf+1
+	nc_cols=XP.shape[2]-kf+1
+	cols=np.zeros((nr_cols,k*k,nc_cols)
+	for r in range(xp.shape[0]-k+1):
+		for c in range(xp.shape[1]-k+1):
+			cols[r,:,c]=xp[r:r+k,c:c+k].reshape(-1)
+	kcols=k1r@cols
+	kcols=kcols.reshape(kcols.shape[0],kcols.shape[-1])
+	return kcols
 
 def maxpooling(img,k=2):
 	(h,w)=img.shape
@@ -137,30 +154,105 @@ def maxpooling(img,k=2):
 	maxcols=np.max(cols,axis=1)
 	return maxcols
 
+def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
+#		 print('init_params:')
+	np.random.seed(seed)
+	if func==0:  (func,func_d)=(relu,relu_d)
+	(params_init,g,g_d,l2_grad)=({},[],[],{})
+	for i in range(lays):
+#		params_init['b'+str(i)]=0
+		params_init['k'+str(i)]=np.random.randn(kr,kr)
+		params_init['beta'+str(i)]=0
+		params_init['gama'+str(i)]=1
+#		params_init['beta'+str(i)]=np.ones((nh,nw))*0
+#		params_init['gama'+str(i)]=np.random.randn(nh,nw)*1e-3
+		l2_grad['d_b'+str(i)]=[]
+		l2_grad['d_k'+str(i)]=[]
+		l2_grad['d_beta'+str(i)]=[]
+		l2_grad['d_gama'+str(i)]=[]
+		g.append(func)
+		g_d.append(func_d)
+	g[-1]=softmax;g.append(cross_entropy)
+	params=copy.deepcopy(params_init)
+	return (params,params_init,g,g_d,l2_grad)
+(params,params_init,g,g_d,l2_grad)=init_params()
 
-(h,w)=(4,9)
-k=3
-x=np.arange(h*w).reshape(h,w)
-kf=np.ones((k,k))
-y=img2d_convolution(x,kf)
-p=maxpooling(y)
-a=relu(p)
+def fp(X,params,g,isop=0,e=1e-8):
+	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+	assert(X.ndim==3)
+	(l,OP)=(int(len(params)/3),{})
+	OP['A-1']=X
+	l=2
+	for i in range(l) :
+		ki=params['k'+str(i)]
+		gamai=params['gama'+str(i)]
+		betai=params['beta'+str(i)]
+		Ai_1=OP['A'+str(i-1)]
+		Zi=img2d_convolution(Ai_1,ki)
+		ui=np.mean(Zi,axis=(1,2),keepdims=1)
+		vi=np.var(Zi,axis=(1,2),keepdims=1)
+		Xi=(Zi-ui)/(vi+e)**0.5
+		Yi=gamai*Xi+betai
+		Ai=g[i](Yi)
+		OP['Z'+str(i)]=Zi
+		OP['X'+str(i)]=Xi
+		OP['Y'+str(i)]=Yi
+		OP['A'+str(i)]=Ai
+		OP['u'+str(i)]=ui
+		OP['v'+str(i)]=vi
+	Y=OP['A'+str(l-1)]
+	if isop==0: 
+		return Y
+	else: 
+		return (Y,OP)
 
-print('x=\n',x)
+
+
+
+
+n=1	
+xin=mnist.test_img[n]
+lab=mnist.test_lab[n].squeeze()
+xin=xin.reshape(28,28)
+
+print('params.keys()=\n',params.keys())
+print('params[k0]=\n',params['k0'])
+
+y=fp(xin,params,g)
+
+
+
 print('y=\n',y)
-print('p=\n',p)
-print('a=\n',a)
-print('x.shape=',x.shape)
 print('y.shape=',y.shape)
-print('p.shape=',p.shape)
-print('a.shape=',a.shape)
+
+plt.imshow(xin,cmap='gray')
+plt.show()
+plt.imshow(y,cmap='gray')
+plt.show()
 
 
+#kf=np.ones((k,k))
+#z0=img2d_convolution(xin,kf)
+#z0=maxpooling(z0)
+#u0=np.mean(z0)
+#v0=np.var(z0)
+#x0=(z0-u0)/(v0+e)**0.5
+#(gama0,beta0)=(np.ones(x0.shape),np.zeros(x0.shape))
+#y0=gama0*x0+beta0
+#a0=relu(y0)
+#print('z0=\n',z0)
+#print('z0.shape=',z0.shape)
+#print('y0=\n',y0)
+#print('y0.shape=',y0.shape)
+#print('a0=\n',a0)
+#print('a0.shape=',a0.shape)
 #
-#n=1	
-#x=mnist.test_img[n]
-#lab=mnist.test_lab[n].squeeze()
-#x=x.reshape(28,28)
-#
-
+#plt.imshow(xin,cmap='gray')
+#plt.show()
+#plt.imshow(z0,cmap='gray')
+#plt.show()
+#plt.imshow(x0,cmap='gray')
+#plt.show()
+#plt.imshow(y0,cmap='gray')
+#plt.show()
 

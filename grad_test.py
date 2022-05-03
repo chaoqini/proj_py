@@ -21,8 +21,7 @@ z1c=z.reshape(-1,1)
 u1c=np.mean(z1c)
 v1c=np.var(z1c)
 x1c=(z1c-u1c)/(v1c+e)**0.5
-#m1c=z1c.shape[0]
-m1c=z1c.size
+m1c=z1c.shape[0]
 
 xx=np.einsum('ij,kl->ijkl',x,x)
 Imn=np.ones((xx.shape))
@@ -33,7 +32,7 @@ grad=(mnE-Imn-xx)/(m*n*(v+e)**0.5)
 grad2=(m1c*np.eye(m1c)-np.ones((m1c,m1c))-x1c@x1c.T)/(m1c*(v1c+e)**0.5)
 
 zcopy=copy.deepcopy(z)
-dv=1e-3
+dv=1e-5
 k=np.zeros((grad.shape))
 for i in range(k.shape[0]):
 	for j in range(k.shape[1]):
