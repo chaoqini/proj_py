@@ -56,19 +56,6 @@ def cross_entropy(X,LAB,params,g,isvalid=0):
 		return (cost,valid_per,correct)
 ## ==========
 
-#def im2col():
-
-#n=1	
-#x=mnist.test_img[n]
-#lab=mnist.test_lab[n].squeeze()
-#x=x.reshape(28,28)
-###print(x.reshape(28,28))
-#print(x.shape)
-#
-#xp=np.pad(x,1)
-##print(xp.shape)
-##exit(0)
-#
 def img2d_convolution(img,kfilter):
 	(h,w)=img.shape
 	kf=kfilter.shape[0]
@@ -97,7 +84,6 @@ def img_convolution(X,kfilter):
 		for c in range(nc_cols):
 			cols[:,r,:,c]=XP[:,r:r+kf,c:c+kf].reshape(XP.shape[0],-1)
 	kcols=k1r@cols
-#	kcols=np.squeeze(kcols)
 	kcols=kcols.reshape(kcols.shape[0],kcols.shape[1],kcols.shape[3])
 	return kcols
 
@@ -115,7 +101,7 @@ def maxpooling(X,k=2):
 	maxcols=np.max(cols,axis=2)
 	return maxcols
 
-def init_params(lays=2,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
+def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 #		 print('init_params:')
 	np.random.seed(seed)
 	if func==0:  (func,func_d)=(relu,relu_d)
@@ -127,12 +113,10 @@ def init_params(lays=2,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 		params_init['gama'+str(i)]=1
 #		params_init['beta'+str(i)]=np.ones((nh,nw))*0
 #		params_init['gama'+str(i)]=np.random.randn(nh,nw)*1e-3
-		l2_grad['d_b'+str(i)]=[]
-		l2_grad['d_k'+str(i)]=[]
-		l2_grad['d_beta'+str(i)]=[]
-		l2_grad['d_gama'+str(i)]=[]
 		g.append(func)
 		g_d.append(func_d)
+	params_init['w'+str(lays)]=np.random.randn(nh*nw,ny)*1e-3
+	params_init['b'+str(lays)]=np.ones((ny,1))*0
 	g[-1]=softmax;g.append(cross_entropy)
 	params=copy.deepcopy(params_init)
 	return (params,params_init,g,g_d,l2_grad)
@@ -144,13 +128,19 @@ def fp(X,params,g,isop=0,e=1e-8):
 	print('X.shape=',X.shape)
 	(l,OP)=(int(len(params)/3),{})
 	OP['A-1']=X
-	l=2
-	for i in range(l) :
-		ki=params['k'+str(i)]
+	l=3
+	for i in range(l+1) :
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
 		Ai_1=OP['A'+str(i-1)]
-		Zi=img_convolution(Ai_1,ki)
+		if i<l:
+			ki=params['k'+str(i)]
+			Zi=img_convolution(Ai_1,ki)
+		else:
+			wi=params['w'+str(i)]
+			bi=params['b'+str(i)]
+			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1)
+			Zi=wi@Ai_1+bi
 #		print('Ai_1.shape=',Ai_1.shape)
 #		print('Zi.shape=',Zi.shape)
 		ui=np.mean(Zi,axis=(1,2),keepdims=1)
@@ -164,7 +154,8 @@ def fp(X,params,g,isop=0,e=1e-8):
 		OP['A'+str(i)]=Ai
 		OP['u'+str(i)]=ui
 		OP['v'+str(i)]=vi
-	Y=OP['A'+str(l-1)]
+#	print('Al_1.shape=',Al_1.shape)
+	Y=OP['A'+str(l)]
 	if isop==0: 
 		return Y
 	else: 
@@ -199,11 +190,9 @@ y=fp(xin,params,g)
 #print('y=\n',y)
 print('y.shape=',y.shape)
 
-#plt.imshow(xin.squeeze(),cmap='gray')
-plt.imshow(xin,cmap='gray')
-plt.show()
-#plt.imshow(y.squeeze(),cmap='gray')
-plt.imshow(y[0],cmap='gray')
-plt.show()
+#plt.imshow(xin,cmap='gray')
+#plt.show()
+#plt.imshow(y[0],cmap='gray')
+#plt.show()
 
 

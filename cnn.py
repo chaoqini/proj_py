@@ -56,19 +56,6 @@ def cross_entropy(X,LAB,params,g,isvalid=0):
 		return (cost,valid_per,correct)
 ## ==========
 
-#def im2col():
-
-#n=1	
-#x=mnist.test_img[n]
-#lab=mnist.test_lab[n].squeeze()
-#x=x.reshape(28,28)
-###print(x.reshape(28,28))
-#print(x.shape)
-#
-#xp=np.pad(x,1)
-##print(xp.shape)
-##exit(0)
-#
 def img2d_convolution(img,kfilter):
 	(h,w)=img.shape
 	kf=kfilter.shape[0]
@@ -97,7 +84,6 @@ def img_convolution(X,kfilter):
 		for c in range(nc_cols):
 			cols[:,r,:,c]=XP[:,r:r+kf,c:c+kf].reshape(XP.shape[0],-1)
 	kcols=k1r@cols
-#	kcols=np.squeeze(kcols)
 	kcols=kcols.reshape(kcols.shape[0],kcols.shape[1],kcols.shape[3])
 	return kcols
 
@@ -120,21 +106,18 @@ def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 	np.random.seed(seed)
 	if func==0:  (func,func_d)=(relu,relu_d)
 	(params_init,g,g_d,l2_grad)=({},[],[],{})
-	for i in range(lays-1):
-#		params_init['b'+str(i)]=0
-		params_init['k'+str(i)]=np.random.randn(kr,kr)
-		params_init['beta'+str(i)]=0
+	for i in range(lays):
+		if i<lays-1:
+			params_init['k'+str(i)]=np.random.randn(kr,kr)
+		else:
+			params_init['w'+str(i)]=np.random.randn(ny,nh*nw)*1e-3
+			params_init['b'+str(i)]=np.ones((ny,1))*0
 		params_init['gama'+str(i)]=1
-#		params_init['beta'+str(i)]=np.ones((nh,nw))*0
-#		params_init['gama'+str(i)]=np.random.randn(nh,nw)*1e-3
-		l2_grad['d_b'+str(i)]=[]
-		l2_grad['d_k'+str(i)]=[]
-		l2_grad['d_beta'+str(i)]=[]
-		l2_grad['d_gama'+str(i)]=[]
+		params_init['beta'+str(i)]=0
 		g.append(func)
 		g_d.append(func_d)
-	params_init['w'+str(lays)]=np.random.randn(nh*nw,ny)*1e-3
-	params_init['b'+str(lays)]=np.ones((ny,1))*0
+#	params_init['w'+str(lays)]=np.random.randn(nh*nw,ny)*1e-3
+#	params_init['b'+str(lays)]=np.ones((ny,1))*0
 	g[-1]=softmax;g.append(cross_entropy)
 	params=copy.deepcopy(params_init)
 	return (params,params_init,g,g_d,l2_grad)
@@ -146,15 +129,18 @@ def fp(X,params,g,isop=0,e=1e-8):
 	print('X.shape=',X.shape)
 	(l,OP)=(int(len(params)/3),{})
 	OP['A-1']=X
-	l=2
 	for i in range(l) :
-		ki=params['k'+str(i)]
+		Ai_1=OP['A'+str(i-1)]
+		if i<l-1:
+			ki=params['k'+str(i)]
+			Zi=img_convolution(Ai_1,ki)
+		else:
+			wi=params['w'+str(i)]
+			bi=params['b'+str(i)]
+			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1)
+			Zi=wi@Ai_1+bi
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
-		Ai_1=OP['A'+str(i-1)]
-		Zi=img_convolution(Ai_1,ki)
-#		print('Ai_1.shape=',Ai_1.shape)
-#		print('Zi.shape=',Zi.shape)
 		ui=np.mean(Zi,axis=(1,2),keepdims=1)
 		vi=np.var(Zi,axis=(1,2),keepdims=1)
 		Xi=(Zi-ui)/(vi+e)**0.5
@@ -166,15 +152,7 @@ def fp(X,params,g,isop=0,e=1e-8):
 		OP['A'+str(i)]=Ai
 		OP['u'+str(i)]=ui
 		OP['v'+str(i)]=vi
-	Al=OP['A'+str(l-1)]
-	wl=params['w'+str(l)]
-	bl=params['b'+str(l)]
-
-	Zl=wl@Al+bl
-
-
-
-	print('Al_1.shape=',Al_1.shape)
+#	print('Al_1.shape=',Al_1.shape)
 	Y=OP['A'+str(l-1)]
 	if isop==0: 
 		return Y
@@ -182,6 +160,53 @@ def fp(X,params,g,isop=0,e=1e-8):
 		return (Y,OP)
 
 
+## ==========
+def bp(X,LAB,params,g,g_d,e=1e-8):
+	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+	if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
+	assert(X.ndim==3); assert(LAB.ndim==3)
+	(Y,OP)=fp(X,params,g,isop=1)
+#def fp(X,params,g,isop=0,e=1e-8):
+	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
+	lab=LAB.reshape(-1)
+	assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
+	nbatch=np.arange(len(meye))
+	YL=meye[nbatch,lab,:]
+	YL=YL.reshape(YL.shape+tuple([1]))
+	(l,d_,grad)=(int(len(params)/3),{},{})
+	for i in range(l-1,-1,-1):
+		wi=params['w'+str(i)]
+		bi=params['b'+str(i)]
+		gamai=params['gama'+str(i)]
+		betai=params['beta'+str(i)]
+		ui=OP['u'+str(i)]
+		vi=OP['v'+str(i)]
+		Xi=OP['X'+str(i)]
+		Ain1=OP['A'+str(i-1)]
+		if i>0: Yin1=OP['Y'+str(i-1)]
+		if i==l-1: d_Yi=Y-YL
+		else: d_Yi=d_['Y'+str(i)]
+		d_Xi=gamai*d_Yi
+		mi=Xi.shape[1]
+		XX=np.einsum('ij,kl->ijkl',Xi,Xi)
+		Imm=np.ones((XX.shape))
+		mmE=np.zeros((XX.shape))
+		np.einsum('ijij->ij',mmE)[:]=mi*mi
+		dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
+		d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
+		d_Ain1=wi.T@d_Zi
+		if i>0:
+			d_Yin1=g_d[i](Yin1)*d_Ain1
+			d_['Y'+str(i-1)]=d_Yin1
+		d_wi=d_Zi@Ain1.transpose(0,2,1)
+		d_bi=d_Zi
+		d_gamai=d_Yi*Xi
+		d_betai=d_Yi
+		grad['d_w'+str(i)]=d_wi.mean(axis=0)
+		grad['d_b'+str(i)]=d_bi.mean(axis=0)
+		grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
+		grad['d_beta'+str(i)]=d_betai.mean(axis=0)
+	return grad
 
 
 
@@ -207,7 +232,7 @@ print('params.keys()=\n',params.keys())
 print('params[k0]=\n',params['k0'])
 print('params[k1]=\n',params['k1'])
 y=fp(xin,params,g)
-#print('y=\n',y)
+print('y=\n',y.transpose(0,2,1))
 print('y.shape=',y.shape)
 
 #plt.imshow(xin,cmap='gray')
