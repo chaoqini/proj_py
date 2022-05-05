@@ -188,11 +188,11 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		else: d_Yi=d_['Y'+str(i)]
 		d_Xi=gamai*d_Yi
 		mi=Xi.shape[1]
-		XX=np.einsum('ij,kl->ijkl',Xi,Xi)
+		XX=np.einsum('mij,mkl->mijkl',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
-		np.einsum('ijij->ij',mmE)[:]=mi*mi
-		dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
+		np.einsum('mijij->mij',mmE)[:]=mi*mi
+		dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-XX)/(mi*(vi+e)**0.5)
 		d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
 		d_Ain1=wi.T@d_Zi
 		if i>0:
