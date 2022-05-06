@@ -159,6 +159,41 @@ def fp(X,params,g,isop=0,e=1e-8):
 	else: 
 		return (Y,OP)
 
+def fpbp(X,LAB,params,g,g_d,isop=0,e=1e-8):
+	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+	assert(X.ndim==3)
+	print('X.shape=',X.shape)
+	(l,OP)=(int(len(params)/3),{})
+	OP['A-1']=X
+	for i in range(l) :
+		Ai_1=OP['A'+str(i-1)]
+		if i<l-1:
+			ki=params['k'+str(i)]
+			Zi=img_convolution(Ai_1,ki)
+		else:
+			wi=params['w'+str(i)]
+			bi=params['b'+str(i)]
+			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1)
+			Zi=wi@Ai_1+bi
+		gamai=params['gama'+str(i)]
+		betai=params['beta'+str(i)]
+		ui=np.mean(Zi,axis=(1,2),keepdims=1)
+		vi=np.var(Zi,axis=(1,2),keepdims=1)
+		Xi=(Zi-ui)/(vi+e)**0.5
+		Yi=gamai*Xi+betai
+		Ai=g[i](Yi)
+		OP['Z'+str(i)]=Zi
+		OP['X'+str(i)]=Xi
+		OP['Y'+str(i)]=Yi
+		OP['A'+str(i)]=Ai
+		OP['u'+str(i)]=ui
+		OP['v'+str(i)]=vi
+#	print('Al_1.shape=',Al_1.shape)
+	Y=OP['A'+str(l-1)]
+	if isop==0: 
+		return Y
+	else: 
+		return (Y,OP)
 
 ## ==========
 def bp(X,LAB,params,g,g_d,e=1e-8):
@@ -187,13 +222,17 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		if i==l-1: d_Yi=Y-YL
 		else: d_Yi=d_['Y'+str(i)]
 		d_Xi=gamai*d_Yi
-		mi=Xi.shape[1]
-		XX=np.einsum('mij,mkl->mijkl',Xi,Xi)
-		Imm=np.ones((XX.shape))
-		mmE=np.zeros((XX.shape))
-		np.einsum('mijij->mij',mmE)[:]=mi*mi
-		dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-XX)/(mi*(vi+e)**0.5)
+#		(batch,mx,nx)=Xi.shape
+		Xi=Xi.reshape(Xi.shape[0],-1,1)
+		mri=Xi.shape[1]
+		XXi=np.einsum('mij,mkj->mik',Xi,Xi)
+		Imi=np.ones((XX.shape))
+		mEi=np.zeros((XX.shape))
+		np.einsum('mii->mi',mnEi)[:]=mri
+#		vi=vi.reshape((-1,)+tuple([1]*(XX.ndim-1)))
+		dXi_Zi=(mEi-Imi-XXi)/(mri*(vi+e)**0.5)
 		d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
+#		if i==l-1: d_Ain1=wi.T@d_Zi
 		d_Ain1=wi.T@d_Zi
 		if i>0:
 			d_Yin1=g_d[i](Yin1)*d_Ain1

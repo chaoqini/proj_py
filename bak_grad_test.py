@@ -9,7 +9,7 @@ import copy
 from matplotlib import pyplot as plt 
 
 #(m,n)=(2,2)
-(ba,m,n)=(2,3,3)
+(ba,m,n)=(2,5,3)
 e=1e-8
 np.random.seed(0)
 #z=np.random.rand(m,m)
@@ -44,25 +44,7 @@ for i in range(len(x)):
 	grad2[i]=(mnE-Imn-xx)/(m*n*(vi+e)**0.5)
 #	grad2=(m1c*np.eye(m1c)-np.ones((m1c,m1c))-x1c@x1c.T)/(m1c*(v1c+e)**0.5)
 
-zr=z.reshape(ba,-1,1)
-ur=np.mean(zr,axis=1,keepdims=1)
-vr=np.var(zr,axis=1,keepdims=1)
-#xr=(zr-ur)/(vr+e)**0.5
-#XXr=np.einsum('mij,mkj->mik',xr,xr)
-xr=(zr-ur)/(vr+e)**0.5
-XXr=np.einsum('mij,mkj->mik',xr,xr)
-#XXr=np.einsum('mi,mj->mij',xr,xr)
-print('XXr.shape=',XXr.shape)
-print('XXr=\n',XXr)
-(ba,mr,nr)=XXr.shape
-Imnr=np.ones((XXr.shape))
-#mnErd=np.eye(mr*nr)*mr*nr
-#mnEr=np.r_[mnErd,mnErd]
-mnEr=np.zeros((XXr.shape))
-np.einsum('mii->mi',mnEr)[:]=mr
-#vre=v.reshape((-1,)+tuple([1]*(XX.ndim-1)))
-dXi_Zir=(mnEr-Imnr-XXr)/(mr*(vr+e)**0.5)
-grad3=dXi_Zir
+
 
 
 #zcopy=copy.deepcopy(z)
@@ -91,18 +73,16 @@ grad3=dXi_Zir
 #				k[i,j,r,c]=ktmp
 #assert(np.all(z)==np.all(zcopy))
 
-#print('u=',u)
-#print('v=',v)
-#print('z=\n',z)
-#print('x=\n',x)
-#print('xx=\n',xx)
-#print('Imn=\n',Imn)
-#print('mnE=\n',mnE)
+print('u=',u)
+print('v=',v)
+print('z=\n',z)
+print('x=\n',x)
+print('xx=\n',xx)
+print('Imn=\n',Imn)
+print('mnE=\n',mnE)
 print('grad=\n',grad.reshape(1,-1))
 print('grad2=\n',grad2.reshape(1,-1))
-print('grad3=\n',grad3.reshape(1,-1))
-print('delta_grad=\n',grad.reshape(ba,-1)-grad2.reshape(ba,-1))
-print('delta_grad3=\n',grad3.reshape(ba,-1)-grad2.reshape(ba,-1))
+print('delta_grad=\n',grad.reshape(1,-1)-grad2.reshape(1,-1))
 #print('k=\n',k.reshape(1,-1))
 #print('xx.shape=',xx.shape)
 #print('Imn.shape=',Imn.shape)
@@ -110,7 +90,6 @@ print('delta_grad3=\n',grad3.reshape(ba,-1)-grad2.reshape(ba,-1))
 #print('k.shape=',k.shape)
 print('grad.shape=',grad.shape)
 print('grad2.shape=',grad2.shape)
-print('grad3.shape=',grad3.shape)
 
 
 
