@@ -122,11 +122,12 @@ class bnn:
 		if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
 		assert(X.ndim==3); assert(LAB.ndim==3)
 		(Y,OP)=bnn.fp(X,params,g,1)
-		meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-		lab=LAB.reshape(-1)
-		assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
-		nbatch=np.arange(len(meye))
-		YL=meye[nbatch,lab,:]
+		(ba,rY,cY)=Y.shape
+		baE=np.zeros((ba,rY,rY))
+		np.einsum('mii->mi',baE)[:]=1
+		lab=LAB.reshape(ba)
+		assert(Y.ndim==3 and lab.ndim==1 and baE.ndim==3)
+		YL=baE[np.arange(ba),lab,:]
 		YL=YL.reshape(YL.shape+tuple([1]))
 		(l,d_,grad)=(int(len(params)/4),{},{})
 		for i in range(l-1,-1,-1):
@@ -288,7 +289,7 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 		for k in l2_grad.keys():
 			i=i+1
 #			if 'w' in k or 'beta' in k:
-			if not(k[2]==b and k[3].isdigit()):
+			if not(k[2]=='b' and k[3].isdigit()):
 #				plt.subplot(len(l2_grad),1,i)
 				plt.figure()
 				plt.plot(bnn.l2_grad[k])

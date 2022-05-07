@@ -70,8 +70,10 @@ class bnn:
 		for i in range(lays):
 			params_init['b'+str(i)]=np.ones((nl[i+1],1))*0
 			params_init['w'+str(i)]=np.random.randn(nl[i+1],nl[i])*1e-3
-			params_init['beta'+str(i)]=np.ones((nl[i+1],1))*0
-			params_init['gama'+str(i)]=np.random.randn(nl[i+1],1)*1e-3
+			params_init['beta'+str(i)]=np.array(0.0)
+			params_init['gama'+str(i)]=np.array(1.0)
+#			params_init['beta'+str(i)]=np.ones((nl[i+1],1))*0
+#			params_init['gama'+str(i)]=np.random.randn(nl[i+1],1)*1e-3
 			l2_grad['d_b'+str(i)]=[]
 			l2_grad['d_w'+str(i)]=[]
 			l2_grad['d_beta'+str(i)]=[]
@@ -122,12 +124,9 @@ class bnn:
 		if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
 		assert(X.ndim==3); assert(LAB.ndim==3)
 		(Y,OP)=bnn.fp(X,params,g,1)
-		meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-		lab=LAB.reshape(-1)
-		assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
-		nbatch=np.arange(len(meye))
-		YL=meye[nbatch,lab,:]
-		YL=YL.reshape(YL.shape+tuple([1]))
+		ba=Y.shape[0]
+		YL=np.zeros(Y.shape)
+		YL[np.arange(ba),LAB.reshape(ba),0]=1
 		(l,d_,grad)=(int(len(params)/4),{},{})
 		for i in range(l-1,-1,-1):
 			wi=params['w'+str(i)]
@@ -151,12 +150,16 @@ class bnn:
 				d_['Y'+str(i-1)]=d_Yin1
 			d_wi=d_Zi@Ain1.transpose(0,2,1)
 			d_bi=d_Zi
-			d_gamai=d_Yi*Xi
-			d_betai=d_Yi
+			d_gamai=(d_Yi*Xi).sum()
+			d_betai=(d_Yi).sum()
+#			d_gamai=d_Yi*Xi
+#			d_betai=d_Yi
 			grad['d_w'+str(i)]=d_wi.mean(axis=0)
 			grad['d_b'+str(i)]=d_bi.mean(axis=0)
-			grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
-			grad['d_beta'+str(i)]=d_betai.mean(axis=0)
+			grad['d_gama'+str(i)]=d_gamai
+			grad['d_beta'+str(i)]=d_betai
+#			grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
+#			grad['d_beta'+str(i)]=d_betai.mean(axis=0)
 		return grad
 ## ==========
 	def slope(x,lab,params,g,dv=1e-5):
@@ -285,14 +288,14 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 		title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title
 		plt.title(title,loc='left')
 		i=0
-		for k in l2_grad.keys():
+		for k in bnn.l2_grad.keys():
 			i=i+1
 #			if 'w' in k or 'beta' in k:
 			if not(k[2]=='b' and k[3].isdigit()):
 #				plt.subplot(len(l2_grad),1,i)
 				plt.figure()
 				plt.plot(bnn.l2_grad[k])
-				plt.ylabel(k[2:])
+				plt.ylabel(k)
 		plt.xlabel('Iterations *%s'%batch)
 #		var_title=(lr0,klr,batch)
 #		title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title
@@ -437,8 +440,8 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 	plt.legend(loc='best')
 	plt.show()
 
-(params,params_init,g,g_d,l2_grad)=bnn.init_params(lays=2,nnode=100)
-hyperparams_test(params,params_init,g,g_d,nloop=9,lr0=2e-3,klr=0.9995,batch=40,isupdate=1,isl2grad=1)
+#(params,params_init,g,g_d,l2_grad)=bnn.init_params(lays=2,nnode=100)
+#hyperparams_test(params,params_init,g,g_d,nloop=9,lr0=2e-3,klr=0.9995,batch=40,isupdate=1,isl2grad=1)
 
 
 

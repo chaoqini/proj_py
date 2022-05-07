@@ -201,13 +201,9 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 	if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
 	assert(X.ndim==3); assert(LAB.ndim==3)
 	(Y,OP)=fp(X,params,g,isop=1)
-#def fp(X,params,g,isop=0,e=1e-8):
-	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-	lab=LAB.reshape(-1)
-	assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
-	nbatch=np.arange(len(meye))
-	YL=meye[nbatch,lab,:]
-	YL=YL.reshape(YL.shape+tuple([1]))
+	ba=Y.shape[0]
+	YL=np.zeros(Y.shape)
+	YL[np.arange(ba),LAB.reshape(ba),0]=1
 	(l,d_,grad)=(int(len(params)/3),{},{})
 	for i in range(l-1,-1,-1):
 		wi=params['w'+str(i)]
