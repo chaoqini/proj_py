@@ -186,20 +186,20 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		else: d_Yi=d_['Y'+str(i)]
 		d_Xi=gamai*d_Yi
 #		(batch,mx,nx)=Xi.shape
-		Xi=Xi.reshape(Xi.shape[0],-1,1)
-		XX=np.einsum('mij,mkj->mik',Xi,Xi)
+		Xi=Xi.reshape(Xi.shape[0],1,-1,1)
+		XX=np.einsum('mnij,mnkj->mnik',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
-		np.einsum('mii->mi',mmE)[:]=mmE.shape[1]
+		np.einsum('mii->mi',mmE)[:]=mmE.shape[-2]
 #		vi=vi.reshape((-1,)+tuple([1]*(XX.ndim-1)))
-		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
-		d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
+		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[-2]*(vi+e)**0.5)
+		d_Zi=dXi_Zi.transpose(0,1,3,2)@d_Xi
 		if i==l-1: 
 			d_Ain1=wi.T@d_Zi
 		else:
-			d_Zi=np.expand_dims(d_Zi,axis=-2)
-			ki=ki.reshape(ki.shape[0],1,-1)
-			d_Cin1=ki.transpose(0,2,1)@d_Zi
+#			d_Zi=np.expand_dims(d_Zi,axis=-2)
+			kir=ki.reshape(-1,1)
+			d_Cin1=d_Zi@kir.T
 			d_Ain1=d_Cin1
 		if i>=1:
 			Yin1=OP['Y'+str(i-1)]
