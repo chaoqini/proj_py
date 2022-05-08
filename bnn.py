@@ -38,13 +38,17 @@ def softmax(X):
 	return exp/expsum
 def cross_entropy(X,LAB,params,g,isvalid=0):
 	Y=bnn.fp(X,params,g)
-	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-	lab=LAB.reshape(-1)
-	nbatch=np.arange(len(meye))
-	YL=meye[nbatch,lab,:]
-	YL=YL.reshape(YL.shape+tuple([1]))
-	LOSS=-np.sum(YL*np.log(Y),axis=1)
-	cost=np.sum(LOSS)/len(LOSS)
+	ba=Y.shape[0]
+	YL=np.zeros(Y.shape)
+	YL[np.arange(ba),LAB.reshape(ba),0]=1
+#	Y=bnn.fp(X,params,g)
+#	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
+#	lab=LAB.reshape(-1)
+#	nbatch=np.arange(len(meye))
+#	YL=meye[nbatch,lab,:]
+#	YL=YL.reshape(YL.shape+tuple([1]))
+	LOSS=-np.sum(YL*np.log(Y))
+	cost=LOSS/ba
 	if isvalid==0:
 		return cost
 	else:
@@ -136,18 +140,24 @@ class bnn:
 			ui=OP['u'+str(i)]
 			vi=OP['v'+str(i)]
 			Xi=OP['X'+str(i)]
-			Ain1=OP['A'+str(i-1)]
-			if i>0: Yin1=OP['Y'+str(i-1)]
 			if i==l-1: d_Yi=Y-YL
 			else: d_Yi=d_['Y'+str(i)]
 			d_Xi=gamai*d_Yi
-			mi=Xi.shape[1]
-			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
+			Xi=Xi.reshape(Xi.shape[0],-1,1)
+			XX=np.einsum('mij,mkj->mik',Xi,Xi)
+			Imm=np.ones((XX.shape))
+			mmE=np.zeros((XX.shape))
+			np.einsum('mii->mi',mmE)[:]=mmE.shape[1]
+			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
+#			mi=Xi.shape[1]
+#			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
 			d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
 			d_Ain1=wi.T@d_Zi
-			if i>0:
-				d_Yin1=g_d[i](Yin1)*d_Ain1
+			if i>=1:
+				Yin1=OP['Y'+str(i-1)]
+				d_Yin1=g_d[i-1](Yin1)*d_Ain1
 				d_['Y'+str(i-1)]=d_Yin1
+			Ain1=OP['A'+str(i-1)]
 			d_wi=d_Zi@Ain1.transpose(0,2,1)
 			d_bi=d_Zi
 			d_gamai=(d_Yi*Xi).sum()

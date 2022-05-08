@@ -124,13 +124,9 @@ class bnn:
 		if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
 		assert(X.ndim==3); assert(LAB.ndim==3)
 		(Y,OP)=bnn.fp(X,params,g,1)
-		(ba,rY,cY)=Y.shape
-		baE=np.zeros((ba,rY,rY))
-		np.einsum('mii->mi',baE)[:]=1
-		lab=LAB.reshape(ba)
-		assert(Y.ndim==3 and lab.ndim==1 and baE.ndim==3)
-		YL=baE[np.arange(ba),lab,:]
-		YL=YL.reshape(YL.shape+tuple([1]))
+		ba=Y.shape[0]
+		YL=np.zeros(Y.shape)
+		YL[np.arange(ba),LAB.reshape(ba),0]=1
 		(l,d_,grad)=(int(len(params)/4),{},{})
 		for i in range(l-1,-1,-1):
 			wi=params['w'+str(i)]
@@ -299,7 +295,7 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 #				plt.subplot(len(l2_grad),1,i)
 				plt.figure()
 				plt.plot(bnn.l2_grad[k])
-				plt.ylabel(k[2:])
+				plt.ylabel(k)
 		plt.xlabel('Iterations *%s'%batch)
 #		var_title=(lr0,klr,batch)
 #		title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title

@@ -63,21 +63,30 @@ class bnn:
 #		 print('init_params:')
 		np.random.seed(seed)
 		if func==0:  (func,func_d)=(relu,relu_d)
-		(nl,params_init,g,g_d)=([],{},[],[])
+		(nl,params_init,g,g_d,l2_grad)=([],{},[],[],{})
 		nl.append(nx)
 		for i in range(lays-1): nl.append(nnode)
 		nl.append(ny)
 		for i in range(lays):
 			params_init['b'+str(i)]=np.ones((nl[i+1],1))*0
 			params_init['w'+str(i)]=np.random.randn(nl[i+1],nl[i])*1e-3
-			params_init['beta'+str(i)]=np.ones((nl[i+1],1))*0
-			params_init['gama'+str(i)]=np.random.randn(nl[i+1],1)*1e-3
+			params_init['beta'+str(i)]=np.array(0.0)
+			params_init['gama'+str(i)]=np.array(1.0)
+#			params_init['beta'+str(i)]=np.ones((nl[i+1],1))*0
+#			params_init['gama'+str(i)]=np.random.randn(nl[i+1],1)*1e-3
+			l2_grad['d_b'+str(i)]=[]
+			l2_grad['d_w'+str(i)]=[]
+			l2_grad['d_beta'+str(i)]=[]
+			l2_grad['d_gama'+str(i)]=[]
 			g.append(func)
 			g_d.append(func_d)
 		g[-1]=softmax;g.append(cross_entropy)
 		params=copy.deepcopy(params_init)
-		return (params,params_init,g,g_d)
-	(params,params_init,g,g_d)=init_params()
+#		for k in params.keys():
+#			print('params[%s].shape=%s'%(k,params[k].shape))
+		return (params,params_init,g,g_d,l2_grad)
+	(params,params_init,g,g_d,l2_grad)=init_params()
+#	print('k=',l2_grad.keys())
 
 
 ## ==========
@@ -115,12 +124,9 @@ class bnn:
 		if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
 		assert(X.ndim==3); assert(LAB.ndim==3)
 		(Y,OP)=bnn.fp(X,params,g,1)
-		meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-		lab=LAB.reshape(-1)
-		assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
-		nbatch=np.arange(len(meye))
-		YL=meye[nbatch,lab,:]
-		YL=YL.reshape(YL.shape+tuple([1]))
+		ba=Y.shape[0]
+		YL=np.zeros(Y.shape)
+		YL[np.arange(ba),LAB.reshape(ba),0]=1
 		(l,d_,grad)=(int(len(params)/4),{},{})
 		for i in range(l-1,-1,-1):
 			wi=params['w'+str(i)]
@@ -130,25 +136,36 @@ class bnn:
 			ui=OP['u'+str(i)]
 			vi=OP['v'+str(i)]
 			Xi=OP['X'+str(i)]
-			if i>0: Yin1=OP['Y'+str(i-1)]; Ain1=OP['A'+str(i-1)]
+			Ain1=OP['A'+str(i-1)]
+			if i>0: Yin1=OP['Y'+str(i-1)]
 			if i==l-1: d_Yi=Y-YL
 			else: d_Yi=d_['Y'+str(i)]
 			d_Xi=gamai*d_Yi
-			mi=Xi.shape[1]
-			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
+			Xi=Xi.reshape(Xi.shape[0],-1,1)
+			XX=np.einsum('mij,mkj->mik',Xi,Xi)
+			Imm=np.ones((XX.shape))
+			mmE=np.zeros((XX.shape))
+			np.einsum('mii->mi',mmE)[:]=mmE.shape[1]
+			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
+#			mi=Xi.shape[1]
+#			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
 			d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
+			d_Ain1=wi.T@d_Zi
 			if i>0:
-				d_Ain1=wi.T@d_Zi
 				d_Yin1=g_d[i](Yin1)*d_Ain1
 				d_['Y'+str(i-1)]=d_Yin1
-				d_wi=d_Zi@Ain1.transpose(0,2,1)
+			d_wi=d_Zi@Ain1.transpose(0,2,1)
 			d_bi=d_Zi
-			d_gamai=d_Yi*Xi
-			d_betai=d_Yi
+			d_gamai=(d_Yi*Xi).sum()
+			d_betai=(d_Yi).sum()
+#			d_gamai=d_Yi*Xi
+#			d_betai=d_Yi
 			grad['d_w'+str(i)]=d_wi.mean(axis=0)
 			grad['d_b'+str(i)]=d_bi.mean(axis=0)
-			grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
-			grad['d_beta'+str(i)]=d_betai.mean(axis=0)
+			grad['d_gama'+str(i)]=d_gamai
+			grad['d_beta'+str(i)]=d_betai
+#			grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
+#			grad['d_beta'+str(i)]=d_betai.mean(axis=0)
 		return grad
 ## ==========
 	def slope(x,lab,params,g,dv=1e-5):
@@ -200,12 +217,13 @@ class bnn:
 	def update_params_adam(params,grad,lr,v,s,t=1):
 		(beta1,beta2,e)=(0.9,0.999,1e-8)
 		for k in params.keys():
-			v[k] = beta1*v[k]+(1-beta1)*grad['d_'+k]
-			s[k] = beta2*s[k]+(1-beta2)*grad['d_'+k]**2
-			vc_k = v[k]/(1-beta1**t)
-			sc_k = s[k]/(1-beta2**t)
-			adam_d_k = vc_k/(sc_k**0.5+e)
-			params[k]-=lr*adam_d_k
+			if not (k[0]=='b' and k[1].isdigit()):
+				v[k] = beta1*v[k]+(1-beta1)*grad['d_'+k]
+				s[k] = beta2*s[k]+(1-beta2)*grad['d_'+k]**2
+				vc_k = v[k]/(1-beta1**t)
+				sc_k = s[k]/(1-beta2**t)
+				adam_d_k = vc_k/(sc_k**0.5+e)
+				params[k]-=lr*adam_d_k
 		return (params,v,s)
 	def init_adam(params):
 		(v,s)=({},{})
@@ -225,7 +243,7 @@ class bnn:
 		return (X-mean)/(var+e)**0.5
 ## ==========
 #mnist.train_num=50000
-def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,istime=0):
+def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,istime=0,isl2grad=1):
 #	 if batch<1: batch=bnn.batch
 	max_batches=int(len(mnist.train_img)/batch)
 	if batches<1: batches=max_batches
@@ -233,7 +251,7 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 	X=mnist.train_img[:batch*batches]
 	LAB=mnist.train_lab[:batch*batches]
 	X=X.reshape((-1,batch)+X.shape[1:3])
-	X=bnn.normalize(X)
+#	X=bnn.normalize(X)
 	LAB=LAB.reshape((-1,batch)+LAB.shape[1:3])
 	print('Train input X.shape=%s, LAB.shape=%s'%(X.shape,LAB.shape))
 	(cost,lra)=([],[])
@@ -251,25 +269,43 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=40,batches=0,isplot=0,ist
 		else: (params,v,s)=bnn.update_params_adam(params,grad,lr,v,s,i)
 		(cost_i,valid_per,correct)=g[-1](X[i],LAB[i],params,g,1)
 		cost.append(cost_i)
+		if isl2grad==1:
+			for (kt,vt) in grad.items():
+				l2=np.linalg.norm(vt)/vt.size
+				bnn.l2_grad[kt].append(l2)
 		if (pn==0 or i==len(X)-1) and istime!=0:
 			te=time.time()
 			tspd=(te-tb)*1000
 			print('the spending time of %s/%s batch is %s mS'%(i,len(X),tspd))
-#		 print('batch: cost_i=',cost_i)
+#		if isl2grad==1:
 	cost=np.array(cost)
 	lra=np.array(lra)
 #	 cost=np.array(cost)[50:-1]
 	if isplot!=0:
 		plt.figure()
-		plt.subplot(211)
+		plt.subplot(311)
 		plt.plot(lra)
 		plt.ylabel('lra')
-		plt.subplot(212)
+		plt.subplot(312)
 		plt.plot(cost)
 		plt.ylabel('Cost')
 		plt.xlabel('Iterations *%s'%batch)
 		var_title=(lr0,klr,batch)
 		title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title
+		plt.title(title,loc='left')
+		i=0
+		for k in bnn.l2_grad.keys():
+			i=i+1
+#			if 'w' in k or 'beta' in k:
+			if not(k[2]=='b' and k[3].isdigit()):
+#				plt.subplot(len(l2_grad),1,i)
+				plt.figure()
+				plt.plot(bnn.l2_grad[k])
+				plt.ylabel(k)
+		plt.xlabel('Iterations *%s'%batch)
+#		var_title=(lr0,klr,batch)
+#		title='lr0=%.3e\n klr=%s\n batch=%s\n'%var_title
+		title='l2_grad'
 		plt.title(title,loc='left')
 		plt.show()
 	return (params,lra[-1])
@@ -354,19 +390,22 @@ def show(params,g,n=-1):
 ## ==========
 ## ==========
 
-def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0,istime=0,ischeck=0):
-	(params,lrend)=batch_train(params,g,g_d,lr0,klr,batch,batches,isplot,istime)
+def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0,istime=0,ischeck=0,isl2grad=0):
+	(params,lrend)=batch_train(params,g,g_d,lr0,klr,batch,batches,isplot,istime,isl2grad=isl2grad)
 	(valid_per,correct)=valid(params,g)
 	(valid_per2,correct2)=valid_train(params,g)
 	if ischeck==1:
 		print('Grade check running ...')
-		bnn.grad_check(x,params,lab)
+#		if n==-1: n=np.random.randint(mnist.test_num)
+		x=mnist.test_img[0]
+		lab=mnist.test_lab[0]
+		bnn.grad_check(x,lab,params,g,g_d)
 		print('Grade check end.')
 	return (lrend,valid_per,valid_per2)
 
-def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0):
+def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0,isl2grad=1):
 	print('heyperparams_test: ...')
-	print('heyperparams_test: layers =',int(len(params)/2))
+	print('heyperparams_test: layers =',int(len(params)/4))
 	print('heyperparams_test: learning rate lr0 =',lr0)
 	print('heyperparams_test: learning rate klr =',klr)
 	print('heyperparams_test: batch =',batch)
@@ -389,7 +428,8 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 		for (k,v) in params.items():
 			L2=np.linalg.norm(v)/v.size
 			print('Hyperparams_test: L2_normalize_%s = %.2e'%(k,L2))
-		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1)
+		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1,isl2grad=isl2grad)
+#		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1,ischeck=1)
 		v1a.append(v1)
 		v2a.append(v2)
 #		 lr=lr0*klr**i
@@ -406,9 +446,8 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 	plt.legend(loc='best')
 	plt.show()
 
-(params,params_init,g,g_d)=bnn.init_params(lays=2,nnode=100)
-hyperparams_test(params,params_init,g,g_d,nloop=9,lr0=2e-3,klr=0.9995,batch=40,isupdate=1)
-#hyperparams_test(params,params_init,g,g_d,nloop=6,lr0=2e-3,klr=0.9995,batch=30)
+#(params,params_init,g,g_d,l2_grad)=bnn.init_params(lays=2,nnode=100)
+#hyperparams_test(params,params_init,g,g_d,nloop=9,lr0=2e-3,klr=0.9995,batch=40,isupdate=1,isl2grad=1)
 
 
 
