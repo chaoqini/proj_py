@@ -31,27 +31,32 @@ def relu_d(x,kn=0):
 	y=y.reshape(x.shape)
 	return y
 def softmax(X): 
-	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-	assert(X.ndim==3)
-	exp=np.exp(X-np.max(X,axis=1,keepdims=1))
-	expsum=np.sum(exp,axis=1,keepdims=1)
+#	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+	assert(X.ndim==4)
+	exp=np.exp(X-np.max(X,axis=(1,2,3),keepdims=1))
+	expsum=np.sum(exp,axis=(1,2,3),keepdims=1)
 	return exp/expsum
 def cross_entropy(X,LAB,params,g,isvalid=0):
+	assert(X.ndim==4)
 	Y=bnn.fp(X,params,g)
-	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-	lab=LAB.reshape(-1)
-	nbatch=np.arange(len(meye))
-	YL=meye[nbatch,lab,:]
-	YL=YL.reshape(YL.shape+tuple([1]))
-	LOSS=-np.sum(YL*np.log(Y),axis=1)
-	cost=np.sum(LOSS)/len(LOSS)
+	ba=Y.shape[0]
+	YL=np.zeros(Y.shape)
+	YL[np.arange(ba),0,LAB.reshape(ba),0]=1
+#	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
+#	lab=LAB.reshape(-1)
+#	nbatch=np.arange(len(meye))
+#	YL=meye[nbatch,lab,:]
+#	YL=YL.reshape(YL.shape+tuple([1]))
+#	LOSS=-np.sum(YL*np.log(Y),axis=(1,2,3))
+	LOSS=-np.sum(YL*np.log(Y))
+	cost=LOSS/ba
 	if isvalid==0:
 		return cost
 	else:
-		y1d_max=np.max(Y,axis=1,keepdims=1)
-		Y=np.trunc(Y/y1d_max)
+		y2d_max=np.max(Y,axis=2,keepdims=1)
+		Y=np.trunc(Y/y2d_max)
 		cmp=Y==YL
-		correct=np.trunc(np.sum(cmp,axis=1)/cmp.shape[1])
+		correct=np.trunc(np.sum(cmp,axis=2)/cmp.shape[2])
 		valid_per=correct.sum()/len(correct)
 		return (cost,valid_per,correct)
 ## ==========
@@ -69,23 +74,21 @@ def img2d_convolution(img,kfilter):
 	kcols=kcols.reshape(kcols.shape[0],kcols.shape[-1])
 	return kcols
 def img_convolution(X,kfilter):
-	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-	assert(X.ndim==3)
-	(h,w)=X.shape[1:3]
+	if X.ndim==2: X=X.reshape((1,)+X.shape+(1,))
+	elif X.ndim==3: X=X.reshape(X.shape+(1,))
+	assert(X.ndim==4)
 	kf=kfilter.shape[1]
-	k1r=kfilter.reshape(1,-1)
 	p=int(kf/2)
-	XP=np.pad(X,((0,0),(p,p),(p,p)))
-	nbatch=X.shape[0]
-	nr_cols=XP.shape[1]-kf+1
-	nc_cols=XP.shape[2]-kf+1
-	cols=np.zeros((nbatch,nr_cols,kf*kf,nc_cols))
-	for r in range(nr_cols):
-		for c in range(nc_cols):
-			cols[:,r,:,c]=XP[:,r:r+kf,c:c+kf].reshape(XP.shape[0],-1)
-	kcols=k1r@cols
-	kcols=kcols.reshape(kcols.shape[0],kcols.shape[1],kcols.shape[3])
-	return kcols
+	k1c=kfilter.reshape(-1,1)
+	X=np.pad(X,((0,0),(p,p),(p,p),(0,0)))
+	(ba,h,w,Non)=X.shape
+	(cols_r,cols_c)=(h-kf+1,w-kf+1)
+	cols=np.zeros((ba,cols_r,cols_c,kf*kf))
+	for r in range(cols_r):
+		for c in range(cols_c):
+			cols[:,r,c,:]=X[:,r:r+kf,c:c+kf,0].reshape(X.shape[0],-1)
+	cols1=cols@k1c
+	return cols1
 
 def maxpooling(X,k=2):
 	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
@@ -107,13 +110,12 @@ def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 	if func==0:  (func,func_d)=(relu,relu_d)
 	(params_init,g,g_d,l2_grad)=({},[],[],{})
 	for i in range(lays):
-		if i<lays-1:
-			params_init['k'+str(i)]=np.random.randn(kr,kr)
-		else:
+		if i==lays-1:
 			params_init['w'+str(i)]=np.random.randn(ny,nh*nw)*1e-3
-			params_init['b'+str(i)]=np.ones((ny,1))*0
-		params_init['gama'+str(i)]=1
-		params_init['beta'+str(i)]=0
+		else:
+			params_init['k'+str(i)]=np.random.randn(kr,kr)
+		params_init['gama'+str(i)]=np.array(1.0)
+		params_init['beta'+str(i)]=np.array(0.0)
 		g.append(func)
 		g_d.append(func_d)
 #	params_init['w'+str(lays)]=np.random.randn(nh*nw,ny)*1e-3
@@ -124,25 +126,29 @@ def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 (params,params_init,g,g_d,l2_grad)=init_params()
 
 def fp(X,params,g,isop=0,e=1e-8):
-	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-	assert(X.ndim==3)
-	print('X.shape=',X.shape)
+	if X.ndim==2: X=X.reshape((1,)+X.shape+(1,))
+	elif X.ndim==3: X=X.reshape(X.shape+(1,))
+	assert(X.ndim==4)
+#	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+#	assert(X.ndim==3)
+#	print('X.shape=',X.shape)
 	(l,OP)=(int(len(params)/3),{})
 	OP['A-1']=X
+#	print('X.shape=',X.shape)
 	for i in range(l) :
 		Ai_1=OP['A'+str(i-1)]
-		if i<l-1:
+#		print('Ai_1.shape=',Ai_1.shape)
+		if i==l-1:
+			wi=params['w'+str(i)]
+			Ai_1=Ai_1.reshape(Ai_1.shape[0],1,-1,1)
+			Zi=wi@Ai_1
+		else:
 			ki=params['k'+str(i)]
 			Zi=img_convolution(Ai_1,ki)
-		else:
-			wi=params['w'+str(i)]
-			bi=params['b'+str(i)]
-			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1)
-			Zi=wi@Ai_1+bi
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
-		ui=np.mean(Zi,axis=(1,2),keepdims=1)
-		vi=np.var(Zi,axis=(1,2),keepdims=1)
+		ui=np.mean(Zi,axis=(1,2,3),keepdims=1)
+		vi=np.var(Zi,axis=(1,2,3),keepdims=1)
 		Xi=(Zi-ui)/(vi+e)**0.5
 		Yi=gamai*Xi+betai
 		Ai=g[i](Yi)
@@ -159,51 +165,58 @@ def fp(X,params,g,isop=0,e=1e-8):
 	else: 
 		return (Y,OP)
 
-
 ## ==========
 def bp(X,LAB,params,g,g_d,e=1e-8):
-	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-	if LAB.ndim==2: LAB=LAB.reshape(tuple([1])+LAB.shape)
-	assert(X.ndim==3); assert(LAB.ndim==3)
+	if X.ndim==2: X=X.reshape((1,)+(X.shape[0],)+(1,)+(X.shape[-1],))
+	elif X.ndim==3 and X.shape[-2]!=1: X=X.reshape(X.shape[:-1]+(1,)+X.shape[-1:])
+	assert(X.ndim==4)
+#	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
+	if LAB.ndim==2: LAB=LAB.reshape((1,)+LAB.shape)
+	assert(X.ndim==4 and LAB.ndim==3)
 	(Y,OP)=fp(X,params,g,isop=1)
-#def fp(X,params,g,isop=0,e=1e-8):
-	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-	lab=LAB.reshape(-1)
-	assert(Y.ndim==3);assert(lab.ndim==1);assert(meye.ndim==3)
-	nbatch=np.arange(len(meye))
-	YL=meye[nbatch,lab,:]
-	YL=YL.reshape(YL.shape+tuple([1]))
+	ba=Y.shape[0]
+	YL=np.zeros(Y.shape)
+	YL[np.arange(ba),0,LAB.reshape(ba),0]=1
 	(l,d_,grad)=(int(len(params)/3),{},{})
 	for i in range(l-1,-1,-1):
-		wi=params['w'+str(i)]
-		bi=params['b'+str(i)]
+		if i==l-1:
+			wi=params['w'+str(i)]
+		else:
+			ki=params['k'+str(i)]
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
 		ui=OP['u'+str(i)]
 		vi=OP['v'+str(i)]
 		Xi=OP['X'+str(i)]
-		Ain1=OP['A'+str(i-1)]
-		if i>0: Yin1=OP['Y'+str(i-1)]
 		if i==l-1: d_Yi=Y-YL
 		else: d_Yi=d_['Y'+str(i)]
 		d_Xi=gamai*d_Yi
-		mi=Xi.shape[1]
-		XX=np.einsum('ij,kl->ijkl',Xi,Xi)
+#		(batch,mx,nx)=Xi.shape
+		Xi=Xi.reshape(Xi.shape[0],-1,1)
+		XX=np.einsum('mij,mkj->mik',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
-		np.einsum('ijij->ij',mmE)[:]=mi*mi
-		dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
+		np.einsum('mii->mi',mmE)[:]=mmE.shape[1]
+#		vi=vi.reshape((-1,)+tuple([1]*(XX.ndim-1)))
+		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
 		d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
-		d_Ain1=wi.T@d_Zi
-		if i>0:
-			d_Yin1=g_d[i](Yin1)*d_Ain1
+		if i==l-1: 
+			d_Ain1=wi.T@d_Zi
+		else:
+			d_Zi=np.expand_dims(d_Zi,axis=-2)
+			ki=ki.reshape(ki.shape[0],1,-1)
+			d_Cin1=ki.transpose(0,2,1)@d_Zi
+			d_Ain1=d_Cin1
+		if i>=1:
+			Yin1=OP['Y'+str(i-1)]
+			d_Yin1=g_d[i-1](Yin1)*d_Ain1
 			d_['Y'+str(i-1)]=d_Yin1
+		Ain1=OP['A'+str(i-1)]
 		d_wi=d_Zi@Ain1.transpose(0,2,1)
 		d_bi=d_Zi
 		d_gamai=d_Yi*Xi
 		d_betai=d_Yi
 		grad['d_w'+str(i)]=d_wi.mean(axis=0)
-		grad['d_b'+str(i)]=d_bi.mean(axis=0)
 		grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
 		grad['d_beta'+str(i)]=d_betai.mean(axis=0)
 	return grad
@@ -224,15 +237,18 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 
 
 n=1	
-xin=mnist.test_img[n]
-lab=mnist.test_lab[n].squeeze()
-xin=xin.reshape(28,28)
+#xin=mnist.test_img[n]
+#lab=mnist.test_lab[n].squeeze()
+#xin=xin.reshape(1,28,28,1)
+xin=mnist.test_img[n:n+2]
+lab=mnist.test_lab[n:n+2].squeeze()
+xin=xin.reshape(2,28,28,1)
 
 print('params.keys()=\n',params.keys())
 print('params[k0]=\n',params['k0'])
 print('params[k1]=\n',params['k1'])
 y=fp(xin,params,g)
-print('y=\n',y.transpose(0,2,1))
+print('y=\n',y.transpose(0,1,3,2))
 print('y.shape=',y.shape)
 
 #plt.imshow(xin,cmap='gray')

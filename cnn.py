@@ -74,22 +74,21 @@ def img2d_convolution(img,kfilter):
 	kcols=kcols.reshape(kcols.shape[0],kcols.shape[-1])
 	return kcols
 def img_convolution(X,kfilter):
-	if X.ndim==2: X=X.reshape((1,)+(X.shape[0],)+(1,)+(X.shape[-1],))
-	elif X.ndim==3 and X.shape[-2]!=1: X=X.reshape(X.shape[:-1]+(1,)+X.shape[-1:])
+	if X.ndim==2: X=X.reshape((1,)+X.shape+(1,))
+	elif X.ndim==3: X=X.reshape(X.shape+(1,))
 	assert(X.ndim==4)
 	kf=kfilter.shape[1]
 	p=int(kf/2)
-	k1r=kfilter.reshape(1,-1)
-	X=np.pad(X,((0,0),(p,p),(0,0),(p,p)))
-	(ba,h,Non,w)=X.shape
-	(cols_r,cols_c)=(h-kf+1,w-kf+1)
-	cols=np.zeros((ba,cols_r,kf*kf,cols_c))
-	for r in range(cols_r):
-		for c in range(cols_c):
-			cols[:,r,:,c]=X[:,r:r+kf,0,c:c+kf].reshape(X.shape[0],-1)
-	kcols=k1r@cols
-#	kcols=kcols.reshape(kcols.shape[0],kcols.shape[1],kcols.shape[3])
-	return kcols
+	k1=kfilter.reshape(-1,1)
+	X=np.pad(X,((0,0),(p,p),(p,p),(0,0)))
+	(ba,h,w,Non)=X.shape
+	(colk_r,colk_c)=(h-kf+1,w-kf+1)
+	colk=np.zeros((ba,colk_r,colk_c,kf*kf))
+	for r in range(colk_r):
+		for c in range(colk_c):
+			colk[:,r,c,:]=X[:,r:r+kf,c:c+kf,0].reshape(X.shape[0],-1)
+	col1=colk@k1
+	return col1
 
 def maxpooling(X,k=2):
 	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
@@ -127,12 +126,9 @@ def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 (params,params_init,g,g_d,l2_grad)=init_params()
 
 def fp(X,params,g,isop=0,e=1e-8):
-	if X.ndim==2: X=X.reshape((1,)+(X.shape[0],)+(1,)+(X.shape[-1],))
-	elif X.ndim==3 and X.shape[-2]!=1: X=X.reshape(X.shape[:-1]+(1,)+X.shape[-1:])
+	if X.ndim==2: X=X.reshape((1,)+X.shape+(1,))
+	elif X.ndim==3: X=X.reshape(X.shape+(1,))
 	assert(X.ndim==4)
-#	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-#	assert(X.ndim==3)
-#	print('X.shape=',X.shape)
 	(l,OP)=(int(len(params)/3),{})
 	OP['A-1']=X
 	for i in range(l) :
@@ -157,7 +153,6 @@ def fp(X,params,g,isop=0,e=1e-8):
 		OP['A'+str(i)]=Ai
 		OP['u'+str(i)]=ui
 		OP['v'+str(i)]=vi
-#	print('Al_1.shape=',Al_1.shape)
 	Y=OP['A'+str(l-1)]
 	if isop==0: 
 		return Y
@@ -236,9 +231,12 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 
 
 n=1	
-xin=mnist.test_img[n]
-lab=mnist.test_lab[n].squeeze()
-xin=xin.reshape(1,28,1,28)
+#xin=mnist.test_img[n]
+#lab=mnist.test_lab[n].squeeze()
+#xin=xin.reshape(1,28,28,1)
+xin=mnist.test_img[n:n+2]
+lab=mnist.test_lab[n:n+2].squeeze()
+xin=xin.reshape(2,28,28,1)
 
 print('params.keys()=\n',params.keys())
 print('params[k0]=\n',params['k0'])
