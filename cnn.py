@@ -90,6 +90,30 @@ def img_convolution(X,kfilter):
 	col1=colk@k1
 	return col1
 
+def im2col(im,k):
+	assert(im.ndim==4 and im.shape[-1]==1)
+	p=int(k/2)
+	imp=np.pad(im,((0,0),(p,p),(p,p),(0,0)))
+	(ba,h,w,n)=imp.shape
+	(col_r,col_c)=(h-k+1,w-k+1)
+	col=np.zeros((ba,col_r,col_c,ki*ki))
+	for r in range(col_r):
+		for c in range(col_c):
+			col[:,r,c,:]=imp[:,r:r+k,c:c+k,0].reshape(imp.shape[0],-1)
+	return col
+	
+def col2im(col,k,p=-1):
+	assert(col.ndim==4)
+	if p==-1: p=int(k/2)
+	(ba,h,w,kk)=col.shape
+	im=np.zeros((ba,h,w,1))
+	for r in range(h):
+		for c in range(w):
+			im[:,r,c,0]=col[:,r,c,int(k*(p+0.5))]
+	return im
+
+
+
 def maxpooling(X,k=2):
 	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
 	assert(X.ndim==3)
@@ -126,8 +150,8 @@ def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 (params,params_init,g,g_d,l2_grad)=init_params()
 
 def fp(X,params,g,isop=0,e=1e-8):
-	if X.ndim==2: X=X.reshape((1,)+X.shape+(1,))
-	elif X.ndim==3: X=X.reshape(X.shape+(1,))
+#	if X.ndim==2: X=X.reshape((1,)+X.shape+(1,))
+#	elif X.ndim==3: X=X.reshape(X.shape+(1,))
 	assert(X.ndim==4)
 	(l,OP)=(int(len(params)/3),{})
 	OP['A-1']=X
@@ -135,11 +159,14 @@ def fp(X,params,g,isop=0,e=1e-8):
 		Ai_1=OP['A'+str(i-1)]
 		if i==l-1:
 			wi=params['w'+str(i)]
-			Ai_1=Ai_1.reshape(Ai_1.shape[0],1,-1,1)
-			Zi=wi@Ai_1
+			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1,1)
+#			Zi=wi@Ai_1
+			Zi=np.einsum('ij,mjkn->mikn',wi,Ai_1)
 		else:
 			ki=params['k'+str(i)]
-			Zi=img_convolution(Ai_1,ki)
+			col=im2col(Ai_1,ki.shape[1])
+#			Zi=img_convolution(Ai_1,ki)
+			Zi=col@(ki.reshape(-1,1))
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
 		ui=np.mean(Zi,axis=(1,2,3),keepdims=1)
@@ -186,16 +213,17 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		else: d_Yi=d_['Y'+str(i)]
 		d_Xi=gamai*d_Yi
 #		(batch,mx,nx)=Xi.shape
-		Xi=Xi.reshape(Xi.shape[0],1,-1,1)
-		XX=np.einsum('mnij,mnkj->mnik',Xi,Xi)
+		Xi=Xi.reshape(Xi.shape[0],-1,1,1)
+		XX=np.einsum('mijn,mkjn->mikn',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
-		np.einsum('mii->mi',mmE)[:]=mmE.shape[-2]
-#		vi=vi.reshape((-1,)+tuple([1]*(XX.ndim-1)))
-		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[-2]*(vi+e)**0.5)
-		d_Zi=dXi_Zi.transpose(0,1,3,2)@d_Xi
+		np.einsum('miin->min',mmE)[:]=mmE.shape[1]
+		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
+#		d_Zi=dXi_Zi.transpose(0,2,1,3)@d_Xi
+		d_Zi=np.einsum('mijn,mikn->mjkn',dXi_Zi,d_Xi)
 		if i==l-1: 
-			d_Ain1=wi.T@d_Zi
+#			d_Ain1=wi.T@d_Zi
+			d_Ain1=np.einsum('ij,mikn->mjkn',wi,d_Zi)
 		else:
 #			d_Zi=np.expand_dims(d_Zi,axis=-2)
 			kir=ki.reshape(-1,1)
@@ -215,39 +243,37 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		grad['d_beta'+str(i)]=d_betai.mean(axis=0)
 	return grad
 
+(ba,h,w,ki)=(2,8,7,5)
+aa=np.arange(ba*h*w).reshape(ba,h,w,1)+1
+cc=im2col(aa,ki)
+bb=col2im(cc,ki)
+print('aa=\n',aa.transpose(0,3,1,2))
+print('bb=\n',bb.transpose(0,3,1,2))
+print('cc=\n',cc)
+print('aa.shape=',aa.shape)
+print('bb.shape=',bb.shape)
+print('cc.shape=',cc.shape)
 
 
-#def img3d_convolution(X,kfilter):
-#X=np.arange(2*4*4).reshape(2,4,4)
-#kf=np.ones((3,3))
-#y=img_convolution(X,kf)
-#y2=maxpooling(y)
-#print('X.shape=',X.shape)
-#print('X=\n',X)
+
+#n=1	
+##xin=mnist.test_img[n]
+##lab=mnist.test_lab[n].squeeze()
+##xin=xin.reshape(1,28,28,1)
+#xin=mnist.test_img[n:n+2]
+#lab=mnist.test_lab[n:n+2].squeeze()
+#xin=xin.reshape(2,28,28,1)
+#
+#print('params.keys()=\n',params.keys())
+#print('params[k0]=\n',params['k0'])
+#print('params[k1]=\n',params['k1'])
+#y=fp(xin,params,g)
+#print('y=\n',y.transpose(0,1,3,2))
 #print('y.shape=',y.shape)
-#print('y=\n',y)
-#print('y2.shape=',y2.shape)
-
-
-
-n=1	
-#xin=mnist.test_img[n]
-#lab=mnist.test_lab[n].squeeze()
-#xin=xin.reshape(1,28,28,1)
-xin=mnist.test_img[n:n+2]
-lab=mnist.test_lab[n:n+2].squeeze()
-xin=xin.reshape(2,28,28,1)
-
-print('params.keys()=\n',params.keys())
-print('params[k0]=\n',params['k0'])
-print('params[k1]=\n',params['k1'])
-y=fp(xin,params,g)
-print('y=\n',y.transpose(0,1,3,2))
-print('y.shape=',y.shape)
-
-#plt.imshow(xin,cmap='gray')
-#plt.show()
-#plt.imshow(y[0],cmap='gray')
-#plt.show()
+#
+##plt.imshow(xin,cmap='gray')
+##plt.show()
+##plt.imshow(y[0],cmap='gray')
+##plt.show()
 
 

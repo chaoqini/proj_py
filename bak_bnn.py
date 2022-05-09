@@ -38,13 +38,17 @@ def softmax(X):
 	return exp/expsum
 def cross_entropy(X,LAB,params,g,isvalid=0):
 	Y=bnn.fp(X,params,g)
-	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-	lab=LAB.reshape(-1)
-	nbatch=np.arange(len(meye))
-	YL=meye[nbatch,lab,:]
-	YL=YL.reshape(YL.shape+tuple([1]))
-	LOSS=-np.sum(YL*np.log(Y),axis=1)
-	cost=np.sum(LOSS)/len(LOSS)
+	ba=Y.shape[0]
+	YL=np.zeros(Y.shape)
+	YL[np.arange(ba),LAB.reshape(ba),0]=1
+#	Y=bnn.fp(X,params,g)
+#	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
+#	lab=LAB.reshape(-1)
+#	nbatch=np.arange(len(meye))
+#	YL=meye[nbatch,lab,:]
+#	YL=YL.reshape(YL.shape+tuple([1]))
+	LOSS=-np.sum(YL*np.log(Y))
+	cost=LOSS/ba
 	if isvalid==0:
 		return cost
 	else:
@@ -68,13 +72,13 @@ class bnn:
 		for i in range(lays-1): nl.append(nnode)
 		nl.append(ny)
 		for i in range(lays):
-			params_init['b'+str(i)]=np.ones((nl[i+1],1))*0
+#			params_init['b'+str(i)]=np.ones((nl[i+1],1))*0
 			params_init['w'+str(i)]=np.random.randn(nl[i+1],nl[i])*1e-3
 			params_init['beta'+str(i)]=np.array(0.0)
 			params_init['gama'+str(i)]=np.array(1.0)
 #			params_init['beta'+str(i)]=np.ones((nl[i+1],1))*0
 #			params_init['gama'+str(i)]=np.random.randn(nl[i+1],1)*1e-3
-			l2_grad['d_b'+str(i)]=[]
+#			l2_grad['d_b'+str(i)]=[]
 			l2_grad['d_w'+str(i)]=[]
 			l2_grad['d_beta'+str(i)]=[]
 			l2_grad['d_gama'+str(i)]=[]
@@ -93,15 +97,15 @@ class bnn:
 	def fp(X,params,g,isop=0,e=1e-8):
 		if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
 		assert(X.ndim==3)
-		(l,OP)=(int(len(params)/4),{})
+		(l,OP)=(int(len(params)/3),{})
 		OP['A-1']=X
 		for i in range(l) :
 			wi=params['w'+str(i)]
-			bi=params['b'+str(i)]
+#			bi=params['b'+str(i)]
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			Ai_1=OP['A'+str(i-1)]
-			Zi=wi@Ai_1+bi
+			Zi=wi@Ai_1
 			ui=np.mean(Zi,axis=1,keepdims=1)
 			vi=np.var(Zi,axis=1,keepdims=1)
 			Xi=(Zi-ui)/(vi+e)**0.5
@@ -127,35 +131,41 @@ class bnn:
 		ba=Y.shape[0]
 		YL=np.zeros(Y.shape)
 		YL[np.arange(ba),LAB.reshape(ba),0]=1
-		(l,d_,grad)=(int(len(params)/4),{},{})
+		(l,d_,grad)=(int(len(params)/3),{},{})
 		for i in range(l-1,-1,-1):
 			wi=params['w'+str(i)]
-			bi=params['b'+str(i)]
+#			bi=params['b'+str(i)]
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			ui=OP['u'+str(i)]
 			vi=OP['v'+str(i)]
 			Xi=OP['X'+str(i)]
-			Ain1=OP['A'+str(i-1)]
-			if i>0: Yin1=OP['Y'+str(i-1)]
 			if i==l-1: d_Yi=Y-YL
 			else: d_Yi=d_['Y'+str(i)]
 			d_Xi=gamai*d_Yi
-			mi=Xi.shape[1]
-			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
+			Xi=Xi.reshape(Xi.shape[0],-1,1)
+			XX=np.einsum('mij,mkj->mik',Xi,Xi)
+			Imm=np.ones((XX.shape))
+			mmE=np.zeros((XX.shape))
+			np.einsum('mii->mi',mmE)[:]=mmE.shape[1]
+			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
+#			mi=Xi.shape[1]
+#			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
 			d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
 			d_Ain1=wi.T@d_Zi
-			if i>0:
-				d_Yin1=g_d[i](Yin1)*d_Ain1
+			if i>=1:
+				Yin1=OP['Y'+str(i-1)]
+				d_Yin1=g_d[i-1](Yin1)*d_Ain1
 				d_['Y'+str(i-1)]=d_Yin1
+			Ain1=OP['A'+str(i-1)]
 			d_wi=d_Zi@Ain1.transpose(0,2,1)
-			d_bi=d_Zi
+#			d_bi=d_Zi
 			d_gamai=(d_Yi*Xi).sum()
 			d_betai=(d_Yi).sum()
 #			d_gamai=d_Yi*Xi
 #			d_betai=d_Yi
 			grad['d_w'+str(i)]=d_wi.mean(axis=0)
-			grad['d_b'+str(i)]=d_bi.mean(axis=0)
+#			grad['d_b'+str(i)]=d_bi.mean(axis=0)
 			grad['d_gama'+str(i)]=d_gamai
 			grad['d_beta'+str(i)]=d_betai
 #			grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
@@ -399,7 +409,7 @@ def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0
 
 def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0,isl2grad=1):
 	print('heyperparams_test: ...')
-	print('heyperparams_test: layers =',int(len(params)/4))
+	print('heyperparams_test: layers =',int(len(params)/3))
 	print('heyperparams_test: learning rate lr0 =',lr0)
 	print('heyperparams_test: learning rate klr =',klr)
 	print('heyperparams_test: batch =',batch)

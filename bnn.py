@@ -15,7 +15,6 @@ def tanh(x): return np.tanh(x)
 def tanh_d(x):
 	y=tanh(x)
 	return 1-y**2
-#def relu(x): return np.maximum(0,x)
 def relu(x,kn=0):
 	y=x.copy().reshape(-1)
 	yt=x.reshape(-1)
@@ -41,12 +40,6 @@ def cross_entropy(X,LAB,params,g,isvalid=0):
 	ba=Y.shape[0]
 	YL=np.zeros(Y.shape)
 	YL[np.arange(ba),LAB.reshape(ba),0]=1
-#	Y=bnn.fp(X,params,g)
-#	meye=np.array([np.eye(Y.shape[1])]*len(LAB))
-#	lab=LAB.reshape(-1)
-#	nbatch=np.arange(len(meye))
-#	YL=meye[nbatch,lab,:]
-#	YL=YL.reshape(YL.shape+tuple([1]))
 	LOSS=-np.sum(YL*np.log(Y))
 	cost=LOSS/ba
 	if isvalid==0:
@@ -64,7 +57,6 @@ def cross_entropy(X,LAB,params,g,isvalid=0):
 ## ==========
 class bnn:
 	def init_params(lays=3,nnode=100,nx=28*28,ny=10,func=0,seed=0):
-#		 print('init_params:')
 		np.random.seed(seed)
 		if func==0:  (func,func_d)=(relu,relu_d)
 		(nl,params_init,g,g_d,l2_grad)=([],{},[],[],{})
@@ -72,13 +64,9 @@ class bnn:
 		for i in range(lays-1): nl.append(nnode)
 		nl.append(ny)
 		for i in range(lays):
-			params_init['b'+str(i)]=np.ones((nl[i+1],1))*0
 			params_init['w'+str(i)]=np.random.randn(nl[i+1],nl[i])*1e-3
 			params_init['beta'+str(i)]=np.array(0.0)
 			params_init['gama'+str(i)]=np.array(1.0)
-#			params_init['beta'+str(i)]=np.ones((nl[i+1],1))*0
-#			params_init['gama'+str(i)]=np.random.randn(nl[i+1],1)*1e-3
-			l2_grad['d_b'+str(i)]=[]
 			l2_grad['d_w'+str(i)]=[]
 			l2_grad['d_beta'+str(i)]=[]
 			l2_grad['d_gama'+str(i)]=[]
@@ -86,26 +74,22 @@ class bnn:
 			g_d.append(func_d)
 		g[-1]=softmax;g.append(cross_entropy)
 		params=copy.deepcopy(params_init)
-#		for k in params.keys():
-#			print('params[%s].shape=%s'%(k,params[k].shape))
 		return (params,params_init,g,g_d,l2_grad)
 	(params,params_init,g,g_d,l2_grad)=init_params()
-#	print('k=',l2_grad.keys())
 
 
 ## ==========
 	def fp(X,params,g,isop=0,e=1e-8):
 		if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
 		assert(X.ndim==3)
-		(l,OP)=(int(len(params)/4),{})
+		(l,OP)=(int(len(params)/3),{})
 		OP['A-1']=X
 		for i in range(l) :
 			wi=params['w'+str(i)]
-			bi=params['b'+str(i)]
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			Ai_1=OP['A'+str(i-1)]
-			Zi=wi@Ai_1+bi
+			Zi=wi@Ai_1
 			ui=np.mean(Zi,axis=1,keepdims=1)
 			vi=np.var(Zi,axis=1,keepdims=1)
 			Xi=(Zi-ui)/(vi+e)**0.5
@@ -131,10 +115,9 @@ class bnn:
 		ba=Y.shape[0]
 		YL=np.zeros(Y.shape)
 		YL[np.arange(ba),LAB.reshape(ba),0]=1
-		(l,d_,grad)=(int(len(params)/4),{},{})
+		(l,d_,grad)=(int(len(params)/3),{},{})
 		for i in range(l-1,-1,-1):
 			wi=params['w'+str(i)]
-			bi=params['b'+str(i)]
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			ui=OP['u'+str(i)]
@@ -149,8 +132,6 @@ class bnn:
 			mmE=np.zeros((XX.shape))
 			np.einsum('mii->mi',mmE)[:]=mmE.shape[1]
 			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
-#			mi=Xi.shape[1]
-#			dXi_Zi=(mi*np.eye(mi)-np.ones((mi,mi))-Xi@Xi.transpose(0,2,1))/(mi*(vi+e)**0.5)
 			d_Zi=dXi_Zi.transpose(0,2,1)@d_Xi
 			d_Ain1=wi.T@d_Zi
 			if i>=1:
@@ -159,21 +140,14 @@ class bnn:
 				d_['Y'+str(i-1)]=d_Yin1
 			Ain1=OP['A'+str(i-1)]
 			d_wi=d_Zi@Ain1.transpose(0,2,1)
-			d_bi=d_Zi
 			d_gamai=(d_Yi*Xi).sum()
 			d_betai=(d_Yi).sum()
-#			d_gamai=d_Yi*Xi
-#			d_betai=d_Yi
 			grad['d_w'+str(i)]=d_wi.mean(axis=0)
-			grad['d_b'+str(i)]=d_bi.mean(axis=0)
 			grad['d_gama'+str(i)]=d_gamai
 			grad['d_beta'+str(i)]=d_betai
-#			grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
-#			grad['d_beta'+str(i)]=d_betai.mean(axis=0)
 		return grad
 ## ==========
 	def slope(x,lab,params,g,dv=1e-5):
-#		 print('slope:')
 		slp={}
 		pt=copy.deepcopy(params)
 		for (k,v) in pt.items():
@@ -190,13 +164,11 @@ class bnn:
 					slp['d_'+k][i,j]=kk
 		iseq=1
 		for k in params.keys():
-#			 iseq=iseq&(np.any(pt[k]==params[k])) 
 			iseq=iseq&(np.all(pt[k]==params[k])) 
 		assert(iseq==1)
 		return slp
 ## ==========
 	def grad_check(x,lab,params,g,g_d,dv=1e-5):
-#		 print('grad_check:')
 		y1=bnn.bp(x,lab,params,g,g_d)
 		y2=bnn.slope(x,lab,params,g,dv)
 		abs_error={};ratio_error={}
@@ -208,8 +180,6 @@ class bnn:
 			l2_v1d2=np.linalg.norm(v1-v2)
 			abs_error[k]=l2_v1d2
 			ratio_error[k]=l2_v1d2/(l2_v1+l2_v2)
-#			 print('grad_check: %s abs_err= %s'%(k,abs_error[k]))
-#			 print('grad_check: %s ratio_err= %s'%(k,ratio_error[k]))
 		print('grad_check: abs_error=',abs_error)
 		print('grad_check: ratio_error=',ratio_error)
 		return (ratio_error,abs_error)
@@ -237,13 +207,11 @@ class bnn:
 		return (v,s)
 ## ==========
 	def normalize(X):
-#		 AX=mnist.train_img
 		e=1e-8 
 		AX=X
 		mean=AX.mean()
 		std=AX.std()
 		var=AX.var()
-#		 return (X-mean)/(std+e)
 		return (X-mean)/(var+e)**0.5
 ## ==========
 #mnist.train_num=50000
@@ -330,8 +298,6 @@ def valid(params,g,batch=0,batches=0):
 #	 print('Valid batch running ...')
 	for i in range(len(X)):
 		pn=i%(max(int(len(X)/10),1))
-#		 if pn==0 or i==len(X)-1:
-#			 print('Valid iteration number = %s/%s'%(i,len(X)))
 		(cost_i,valid_per_i,correct_i)=g[-1](X[i],LAB[i],params,g,1)
 		cost.append(cost_i)
 		valid_per.append(valid_per_i)
@@ -339,11 +305,7 @@ def valid(params,g,batch=0,batches=0):
 	cost=np.array(cost)
 	valid_per=np.array(valid_per)
 	correct=np.array(correct)
-#	 print('Valid L2 norm:')
 	valid_per=valid_per.sum()/len(valid_per)
-#	 for (k,v) in params.items():
-#		 L2=np.linalg.norm(v)/v.size
-#		 print('Valid L2_normalize_%s = %s'%(k,L2))
 	print('Valid percent is : %.2f%%'%(valid_per*100))
 	return (valid_per,correct) 
 ## ==========
@@ -362,8 +324,6 @@ def valid_train(params,g,batch=0,batches=0):
 #	 print('Valid_train batch running ...')
 	for i in range(len(X)):
 		pn=i%(max(int(len(X)/10),1))
-#		 if pn==0 or i==len(X)-1:
-#			 print('Valid_train iteration number = %s/%s'%(i,len(X)))
 		(cost_i,valid_per_i,correct_i)=g[-1](X[i],LAB[i],params,g,1)
 		cost.append(cost_i)
 		valid_per.append(valid_per_i)
@@ -372,9 +332,7 @@ def valid_train(params,g,batch=0,batches=0):
 	valid_per=np.array(valid_per)
 	correct=np.array(correct)
 	valid_per=valid_per.sum()/len(valid_per)
-#	 for (k,v) in params.items():
-#		 L2=np.linalg.norm(v)/v.size
-#		 print('Valid_train L2_normalize_%s = %s'%(k,L2))
+#	 forprint('Valid_train L2_normalize_%s = %s'%(k,L2))
 	print('Valid_train percent is : %.2f%%'%(valid_per*100))
 	return (valid_per,correct) 
 ## ==========
@@ -409,7 +367,7 @@ def train_and_valid(params,g,g_d,lr0=2e-3,klr=0.9995,batch=20,batches=0,isplot=0
 
 def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=40,batches=0,isupdate=0,isl2grad=1):
 	print('heyperparams_test: ...')
-	print('heyperparams_test: layers =',int(len(params)/4))
+	print('heyperparams_test: layers =',int(len(params)/3))
 	print('heyperparams_test: learning rate lr0 =',lr0)
 	print('heyperparams_test: learning rate klr =',klr)
 	print('heyperparams_test: batch =',batch)
@@ -433,7 +391,6 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 			L2=np.linalg.norm(v)/v.size
 			print('Hyperparams_test: L2_normalize_%s = %.2e'%(k,L2))
 		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1,isl2grad=isl2grad)
-#		(lrendi,v1,v2)=train_and_valid(params,g,g_d,lri,klr,batch,batches,isplot=1,ischeck=1)
 		v1a.append(v1)
 		v2a.append(v2)
 #		 lr=lr0*klr**i
