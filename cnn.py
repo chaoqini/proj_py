@@ -96,7 +96,7 @@ def im2col(im,k):
 	imp=np.pad(im,((0,0),(p,p),(p,p),(0,0)))
 	(ba,h,w,n)=imp.shape
 	(col_r,col_c)=(h-k+1,w-k+1)
-	col=np.zeros((ba,col_r,col_c,ki*ki))
+	col=np.zeros((ba,col_r,col_c,k*k))
 	for r in range(col_r):
 		for c in range(col_c):
 			col[:,r,c,:]=imp[:,r:r+k,c:c+k,0].reshape(imp.shape[0],-1)
@@ -162,18 +162,23 @@ def fp(X,params,g,isop=0,e=1e-8):
 			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1,1)
 #			Zi=wi@Ai_1
 			Zi=np.einsum('ij,mjkn->mikn',wi,Ai_1)
+#			print('Ai_1.shape=',Ai_1.shape)
+#			print('Zi.shape=',Zi.shape)
 		else:
 			ki=params['k'+str(i)]
-			col=im2col(Ai_1,ki.shape[1])
+			coli_1=im2col(Ai_1,ki.shape[1])
 #			Zi=img_convolution(Ai_1,ki)
-			Zi=col@(ki.reshape(-1,1))
+			Zi=coli_1@(ki.reshape(-1,1))
+			OP['C'+str(i-1)]=coli_1
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
 		ui=np.mean(Zi,axis=(1,2,3),keepdims=1)
 		vi=np.var(Zi,axis=(1,2,3),keepdims=1)
 		Xi=(Zi-ui)/(vi+e)**0.5
 		Yi=gamai*Xi+betai
+#		print('Yi.shape=',Yi.shape)
 		Ai=g[i](Yi)
+#		print('Ai.shape=',Ai.shape)
 		OP['Z'+str(i)]=Zi
 		OP['X'+str(i)]=Xi
 		OP['Y'+str(i)]=Yi
@@ -197,13 +202,13 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 	(Y,OP)=fp(X,params,g,isop=1)
 	ba=Y.shape[0]
 	YL=np.zeros(Y.shape)
-	YL[np.arange(ba),0,LAB.reshape(ba),0]=1
+#	YL[np.arange(ba),0,LAB.reshape(ba),0]=1
+	YL[np.arange(ba),LAB.reshape(ba),0,0]=1
 	(l,d_,grad)=(int(len(params)/3),{},{})
+	print('l=',l)
 	for i in range(l-1,-1,-1):
-		if i==l-1:
-			wi=params['w'+str(i)]
-		else:
-			ki=params['k'+str(i)]
+		if i==l-1: wi=params['w'+str(i)]
+		else: ki=params['k'+str(i)]
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
 		ui=OP['u'+str(i)]
@@ -211,69 +216,110 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		Xi=OP['X'+str(i)]
 		if i==l-1: d_Yi=Y-YL
 		else: d_Yi=d_['Y'+str(i)]
+		print('loop 1: i=',i)
 		d_Xi=gamai*d_Yi
 #		(batch,mx,nx)=Xi.shape
-		Xi=Xi.reshape(Xi.shape[0],-1,1,1)
-		XX=np.einsum('mijn,mkjn->mikn',Xi,Xi)
+		print('Xi.shape bf =',Xi.shape)
+#		Xi=Xi.reshape(Xi.shape[0],-1,1,1)
+		print('Xi.shape=',Xi.shape)
+		XX=np.einsum('mijn,mkln->mijkln',Xi,Xi)
+		print('XX.shape=',XX.shape)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
-		np.einsum('miin->min',mmE)[:]=mmE.shape[1]
-		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*(vi+e)**0.5)
+		np.einsum('mijijn->mijn',mmE)[:]=mmE.shape[1]*mmE.shape[2]
+		print('bf vi.shape=',vi.shape)
+		vi=vi.reshape(vi.shape+(1,)+(1,))
+		print('vi.shape=',vi.shape)
+		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*mmE.shape[2]*(vi+e)**0.5)
 #		d_Zi=dXi_Zi.transpose(0,2,1,3)@d_Xi
-		d_Zi=np.einsum('mijn,mikn->mjkn',dXi_Zi,d_Xi)
+		print('dXi_Zi.shape=',dXi_Zi.shape)
+		print('d_Xi.shape=',d_Xi.shape)
+#		d_Zi=np.einsum('mijkln,mkln->mijn',dXi_Zi,d_Xi)
+		d_Zi=np.einsum('mijkln,mijn->mkln',dXi_Zi,d_Xi)
+		print('d_Zi.shape=',d_Zi.shape)
+#		print('l=',l)
 		if i==l-1: 
 #			d_Ain1=wi.T@d_Zi
-			d_Ain1=np.einsum('ij,mikn->mjkn',wi,d_Zi)
+			Ai_1=OP['A'+str(i-1)]
+			print('Ai_1.shape=',Ai_1.shape)
+			d_Ai_1=np.einsum('ij,mikn->mjkn',wi,d_Zi)
+			d_Ai_1=d_Ai_1.reshape(Ai_1.shape)
+#			d_wi=d_Zi@Ain1.transpose(0,2,1,3)
+#			d_Zi@Ain1.transpose(0,2,1,3)
+			Ai_1_re=Ai_1.reshape(Ai_1.shape[0],-1,1,1)
+#			print('i=',i)
+#			print('Ai_1.size=',Ai_1.size)
+#			print('d_Zi.shape=',d_Zi.shape)
+			print('Ai_1_re.shape=',Ai_1_re.shape)
+			d_wi=np.einsum('mijn,mkjn->mik',d_Zi,Ai_1_re)
+			print('d_wi.shape=',d_wi.shape)
+			grad['d_w'+str(i)]=d_wi.mean(axis=0)
 		else:
 #			d_Zi=np.expand_dims(d_Zi,axis=-2)
 			kir=ki.reshape(-1,1)
-			d_Cin1=d_Zi@kir.T
-			d_Ain1=d_Cin1
+			d_Ci_1=d_Zi@kir.T
+			print('d_Ci_1.shape=',d_Ci_1.shape)
+			print('ki.shape=',ki.shape)
+			d_Ai_1=col2im(d_Ci_1,ki.shape[1])
+			Ci_1=OP['C'+str(i-1)]
+			d_ki=np.einsum('mhwk,mhwn->mkn',Ci_1,d_Zi)
+			d_ki=d_ki.reshape(d_ki.shape[0],ki.shape[1],-1)
+			grad['d_k'+str(i)]=d_ki.mean(axis=0)
 		if i>=1:
-			Yin1=OP['Y'+str(i-1)]
-			d_Yin1=g_d[i-1](Yin1)*d_Ain1
-			d_['Y'+str(i-1)]=d_Yin1
-		Ain1=OP['A'+str(i-1)]
-		d_wi=d_Zi@Ain1.transpose(0,2,1)
-		d_bi=d_Zi
-		d_gamai=d_Yi*Xi
-		d_betai=d_Yi
-		grad['d_w'+str(i)]=d_wi.mean(axis=0)
-		grad['d_gama'+str(i)]=d_gamai.mean(axis=0)
-		grad['d_beta'+str(i)]=d_betai.mean(axis=0)
+			print('3: i=',i)
+			Yi_1=OP['Y'+str(i-1)]
+			print('Yi_1.shape=',Yi_1.shape)
+			print('g_d[i-1](Yi_1).shape=',g_d[i-1](Yi_1).shape)
+			print('d_Ai_1.shape=',d_Ai_1.shape)
+			d_Yi_1=g_d[i-1](Yi_1)*d_Ai_1
+			d_['Y'+str(i-1)]=d_Yi_1
+		d_gamai=(d_Yi*Xi).sum()
+		d_betai=(d_Yi).sum()
+		grad['d_gama'+str(i)]=d_gamai
+		grad['d_beta'+str(i)]=d_betai
 	return grad
 
-(ba,h,w,ki)=(2,8,7,5)
-aa=np.arange(ba*h*w).reshape(ba,h,w,1)+1
-cc=im2col(aa,ki)
-bb=col2im(cc,ki)
-print('aa=\n',aa.transpose(0,3,1,2))
-print('bb=\n',bb.transpose(0,3,1,2))
-print('cc=\n',cc)
-print('aa.shape=',aa.shape)
-print('bb.shape=',bb.shape)
-print('cc.shape=',cc.shape)
-
-
-
-#n=1	
-##xin=mnist.test_img[n]
-##lab=mnist.test_lab[n].squeeze()
-##xin=xin.reshape(1,28,28,1)
-#xin=mnist.test_img[n:n+2]
-#lab=mnist.test_lab[n:n+2].squeeze()
-#xin=xin.reshape(2,28,28,1)
+##(ba,h,w,ki)=(2,8,7,5)
+#(ba,h,w,ki)=(2,28,28,3)
+#aa=np.arange(ba*h*w).reshape(ba,h,w,1)+1
+#cc=im2col(aa,ki)
+#bb=col2im(cc,ki)
+#print('aa=\n',aa.transpose(0,3,1,2))
+#print('bb=\n',bb.transpose(0,3,1,2))
+#print('cc=\n',cc)
+#print('aa.shape=',aa.shape)
+#print('bb.shape=',bb.shape)
+#print('cc.shape=',cc.shape)
 #
-#print('params.keys()=\n',params.keys())
-#print('params[k0]=\n',params['k0'])
-#print('params[k1]=\n',params['k1'])
+
+
+n=1	
+#xin=mnist.test_img[n]
+#lab=mnist.test_lab[n].squeeze()
+#xin=xin.reshape(1,28,28,1)
+xin=mnist.test_img[n:n+2]
+lab=mnist.test_lab[n:n+2].squeeze()
+xin=xin.reshape(2,28,28,1)
+lab=lab.reshape(2,1,1)
+
+print('params.keys()=\n',params.keys())
+print('params[k0]=\n',params['k0'])
+print('params[k1]=\n',params['k1'])
 #y=fp(xin,params,g)
+(y,OP)=fp(xin,params,g,isop=1)
+#def bp(X,LAB,params,g,g_d,e=1e-8):
+grad=bp(xin,lab,params,g,g_d)
+
 #print('y=\n',y.transpose(0,1,3,2))
-#print('y.shape=',y.shape)
-#
-##plt.imshow(xin,cmap='gray')
-##plt.show()
-##plt.imshow(y[0],cmap='gray')
-##plt.show()
+print('y=\n',y)
+print('y.shape=',y.shape)
+print('grad.keys()=\n',grad.keys())
+print('grad[d_k0]=\n',grad['d_k0'])
+print('grad[d_k1]=\n',grad['d_k1'])
+
+#plt.imshow(xin,cmap='gray')
+#plt.show()
+#plt.imshow(y[0],cmap='gray')
+#plt.show()
 
 
