@@ -135,7 +135,7 @@ def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 	(params_init,g,g_d,l2_grad)=({},[],[],{})
 	for i in range(lays):
 		if i==lays-1:
-			params_init['w'+str(i)]=np.random.randn(ny,nh*nw)*1e-3
+			params_init['w'+str(i)]=np.random.randn(nh,nw,ny)*1e-3
 		else:
 			params_init['k'+str(i)]=np.random.randn(kr,kr)
 		params_init['gama'+str(i)]=np.array(1.0)
@@ -159,9 +159,10 @@ def fp(X,params,g,isop=0,e=1e-8):
 		Ai_1=OP['A'+str(i-1)]
 		if i==l-1:
 			wi=params['w'+str(i)]
-			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1,1)
+#			Ai_1=Ai_1.reshape(Ai_1.shape[0],-1,1,1)
 #			Zi=wi@Ai_1
-			Zi=np.einsum('ij,mjkn->mikn',wi,Ai_1)
+			Zi=np.einsum('mjkn,jkl->mln',Ai_1,wi)
+			Zi=Zi.reshape(Zi.shape+(1,))
 #			print('Ai_1.shape=',Ai_1.shape)
 #			print('Zi.shape=',Zi.shape)
 		else:
@@ -172,6 +173,7 @@ def fp(X,params,g,isop=0,e=1e-8):
 			OP['C'+str(i-1)]=coli_1
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
+#		print('1: i=',i)
 		ui=np.mean(Zi,axis=(1,2,3),keepdims=1)
 		vi=np.var(Zi,axis=(1,2,3),keepdims=1)
 		Xi=(Zi-ui)/(vi+e)**0.5
@@ -234,7 +236,8 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 #		d_Zi=dXi_Zi.transpose(0,2,1,3)@d_Xi
 		print('dXi_Zi.shape=',dXi_Zi.shape)
 		print('d_Xi.shape=',d_Xi.shape)
-		d_Zi=np.einsum('mijkln,mkln->mijn',dXi_Zi,d_Xi)
+#		d_Zi=np.einsum('mijkln,mkln->mijn',dXi_Zi,d_Xi)
+		d_Zi=np.einsum('mijkln,mijn->mkln',dXi_Zi,d_Xi)
 		print('d_Zi.shape=',d_Zi.shape)
 #		print('l=',l)
 		if i==l-1: 
@@ -307,7 +310,7 @@ print('params[k1]=\n',params['k1'])
 #y=fp(xin,params,g)
 (y,OP)=fp(xin,params,g,isop=1)
 #def bp(X,LAB,params,g,g_d,e=1e-8):
-grad=bp(xin,lab,params,g,g_d)
+#grad=bp(xin,lab,params,g,g_d)
 
 #print('y=\n',y.transpose(0,1,3,2))
 print('y=\n',y)

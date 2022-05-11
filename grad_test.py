@@ -17,6 +17,18 @@ z=np.arange(ba*m*n).reshape(ba,m,n)*1e-3
 u=np.mean(z,axis=(1,2),keepdims=1)
 v=np.var(z,axis=(1,2),keepdims=1)
 #u=np.mean(z,axis=(1,2))
+
+def grad_im(z,e=1e-8):
+	u=np.mean(z,axis=(1,2),keepdims=1)
+	v=np.var(z,axis=(1,2),keepdims=1)
+	x=(z-u)/(v+e)**0.5
+	xx=np.einsum('mij,mkl->mijkl',x,x)
+	Im=np.ones((xx.shape))
+	mE=np.zeros((xx.shape))
+	np.einsum('mijij->mij',mE)[:]=mE.shape[1]*mE.shape[2]
+	
+	
+
 #v=np.var(z,axis=(1,2))
 #u=np.mean(z)
 #v=np.var(z)
