@@ -11,6 +11,7 @@ import copy
 
 
 (hhh,www)=(4,4)
+#(hhh,www)=(12,12)
 
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -95,7 +96,9 @@ def img_convolution(X,kfilter):
 	col1=colk@k1
 	return col1
 
-def im2col(im,k):
+
+
+def im2col(im,k=3):
 	assert(im.ndim==4 and im.shape[-1]==1)
 	p=int(k/2)
 	imp=np.pad(im,((0,0),(p,p),(p,p),(0,0)))
@@ -106,11 +109,17 @@ def im2col(im,k):
 		for c in range(col_c):
 			col[:,r,c,:]=imp[:,r:r+k,c:c+k,0].reshape(imp.shape[0],-1)
 	return col
-	
-def col2im(col,k,p=-1):
+def conv(A,kf):
+	assert(A.ndim==4 and A.shape[-1]==1 and kf.ndim==2)
+	C=im2col(A,kf.shape[0])
+	Z=C@kf.reshape(-1,1)
+	return Z
+#def col2im(col,k=3,p=-1):
+def col2im(col,p=-1):
 	assert(col.ndim==4)
-	if p==-1: p=int(k/2)
 	(ba,h,w,kk)=col.shape
+	k=int(kk**0.5)
+	if p==-1: p=int(k/2)
 	im=np.zeros((ba,h,w,1))
 	for r in range(h):
 		for c in range(w):
@@ -133,7 +142,8 @@ def maxpooling(X,k=2):
 	maxcols=np.max(cols,axis=2)
 	return maxcols
 
-def init_params(lays=3,kr=3,nk=2,nh=hhh,nw=www,ny=10,func=0,seed=0):
+def init_params(lays=3,k=3,nh=hhh,nw=www,ny=10,func=0,seed=0):
+#def init_params(lays=5,kr=3,nk=2,nh=hhh,nw=www,ny=10,func=0,seed=0):
 #def init_params(lays=3,kr=3,nk=2,nh=hhh,nw=www,ny=10,func=0,seed=0):
 #def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
 #		 print('init_params:')
@@ -144,7 +154,7 @@ def init_params(lays=3,kr=3,nk=2,nh=hhh,nw=www,ny=10,func=0,seed=0):
 		if i==lays-1:
 			params_init['w'+str(i)]=np.random.randn(nh,nw,ny)*1e-3
 		else:
-			params_init['k'+str(i)]=np.random.randn(kr,kr)
+			params_init['k'+str(i)]=np.random.randn(k,k)
 		params_init['gama'+str(i)]=np.array(1.0).reshape(1,1)
 		params_init['beta'+str(i)]=np.array(0.0).reshape(1,1)
 #		params_init['gama'+str(i)]=np.array(1.0)
@@ -271,16 +281,35 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 			grad['d_w'+str(i)]=d_wi.mean(axis=0)
 		else:
 #			d_Zi=np.expand_dims(d_Zi,axis=-2)
-			kir=ki.reshape(-1,1)
-			print('kir.shape=',kir.shape)
-			print('kir.T.shape=',kir.T.shape)
-			d_Ci_1=np.einsum('mhwn,kn->mhwk',d_Zi,kir)
+#			kir=ki.reshape(-1,1)
+			kifp=np.flip(ki)
+#			print('kir.shape=',kir.shape)
+#			print('kir.T.shape=',kir.T.shape)
+#			d_Ci_1=np.einsum('mhwn,kn->mhwk',d_Zi,kir)
+			d_Ai_1=conv(d_Zi,kifp)
+			print('d_Z%s.shape='%i,d_Zi.shape)
+#			print('d_C%s.shape='%(i-1),d_Ci_1.shape)
+#			print('d_C%s=\n'%(i-1),d_Ci_1)
+
 #			d_Ci_1=d_Zi@kir.T
 #			print('d_Zi.shape=',d_Zi.shape)
-			print('d_Z%s.shape='%i,d_Zi.shape)
-			print('d_C%s.shape='%(i-1),d_Ci_1.shape)
-			print('k%s.shape='%i,ki.shape)
-			d_Ai_1=col2im(d_Ci_1,ki.shape[1])
+#			print('k%s.shape='%i,ki.shape)
+#			print('k%s.shape[1]='%i,ki.shape[1])
+#			d_Ai_1=col2im(d_Ci_1,ki.shape[1])
+			
+#			d_Ci_1_tmp2=copy.deepcopy(d_Ci_1)
+#			d_Ai_1=col2im(d_Ci_1)
+			print('d_Ai_1.shape=',d_Ai_1.shape)
+#			print('d_Ci_1.shape=',d_Ci_1.shape)
+#			print('d_Ci_1=\n',d_Ci_1)
+#			print('d_Ci_1=\n',d_Ci_1.transpose(0,3,1,2))
+#			print('d_Ai_1=\n',d_Ai_1.transpose(0,3,1,2))
+#			d_Ci_1_tmp=im2col(d_Ai_1)
+			print('i=',i)
+#			print('d_Ci_1==d_Ci_1_tmp')
+#			print(d_Ci_1==d_Ci_1_tmp)
+#			print('d_Ci_1==d_Ci_1_tmp2')
+#			print(d_Ci_1==d_Ci_1_tmp2)
 			Ci_1=OP['C'+str(i-1)]
 			print('C%s.shape='%(i-1),Ci_1.shape)
 #			d_ki=np.einsum('mhwk,mhwn->mkn',Ci_1,d_Zi)
@@ -353,9 +382,10 @@ def slope(x,lab,params,g,dv=1e-5):
 	return slp
 
 ## ==========
-def grad_check(x,lab,params,g,g_d,dv=1e-5):
-	y1=bp(x,lab,params,g,g_d)
+#def grad_check(x,lab,params,g,g_d,dv=1e-5):
+def grad_check(x,lab,params,g,g_d,dv=1e-2):
 	y2=slope(x,lab,params,g,dv)
+	y1=bp(x,lab,params,g,g_d)
 	(abs_error,ratio_error)=({},{})
 	for (k,v) in y1.items():
 #		print('='*20)
@@ -374,30 +404,6 @@ def grad_check(x,lab,params,g,g_d,dv=1e-5):
 			print('grad[%s]=\n'%k,y1[k])
 			print('slope[%s]=\n'%k,y2[k])
 
-#	print('grad[d_gama3]=',y1['d_gama3'])
-#	print('slp[d_gama3]=',y2['d_gama3'])
-#	print('grad[d_beta3]=',y1['d_beta3'])
-#	print('slp[d_beta3]=',y2['d_beta3'])
-#	print('grad[d_gama2]=',y1['d_gama2'])
-#	print('slp[d_gama2]=',y2['d_gama2'])
-#	print('grad[d_beta2]=',y1['d_beta2'])
-#	print('slp[d_beta2]=',y2['d_beta2'])
-#	print('grad[d_gama1]=',y1['d_gama1'])
-#	print('slp[d_gama1]=',y2['d_gama1'])
-#	print('grad[d_beta1]=',y1['d_beta1'])
-#	print('slp[d_beta1]=',y2['d_beta1'])
-#	print('grad[d_gama0]=',y1['d_gama0'])
-#	print('slp[d_gama0]=',y2['d_gama0'])
-#	print('grad[d_beta0]=',y1['d_beta0'])
-#	print('slp[d_beta0]=',y2['d_beta0'])
-##	print('grad[d_w3]=\n',y1['d_w3'])
-##	print('slp[d_w3]=\n',y2['d_w3'])
-#	print('grad[d_k2]=\n',y1['d_k1'])
-#	print('slp[d_k2]=\n',y2['d_k2'])
-#	print('grad[d_k1]=\n',y1['d_k1'])
-#	print('slp[d_k1]=\n',y2['d_k1'])
-#	print('grad[d_k0]=\n',y1['d_k0'])
-#	print('slp[d_k0]=\n',y2['d_k0'])
 	print('grad_check: abs_error=\n',abs_error)
 	print('grad_check: ratio_error=\n',ratio_error)
 	return (ratio_error,abs_error)
@@ -424,41 +430,61 @@ xin=mnist.test_img[n:n+2]
 lab=mnist.test_lab[n:n+2].squeeze()
 #xin=xin.reshape(2,28,28,1)
 np.random.seed(1)
-xin=np.random.randn(2,hhh,www,1)+0.1
+xin=np.random.randn(2,hhh,www,1)+0.3
 lab=lab.reshape(2,1,1)
 
 #y=fp(xin,params,g)
 #(y,OP)=fp(xin,params,g,isop=1)
 #def bp(X,LAB,params,g,g_d,e=1e-8):
 #grad=bp(xin,lab,params,g,g_d)
-#def slope(x,lab,params,g,dv=1e-5):
-#slp=slope(xin,lab,params,g)
-#print('grad[d_beta2]=',grad['d_beta2'])
-#print('slp[d_beta2]=',slp['d_beta2'])
-#print('grad[d_beta1]=',grad['d_beta1'])
-#print('slp[d_beta1]=',slp['d_beta1'])
-#print('grad[d_beta0]=',grad['d_beta0'])
-#print('slp[d_beta0]=',slp['d_beta0'])
-#print('grad[d_gama2]=',grad['d_gama2'])
-#print('slp[d_gama2]=',slp['d_gama2'])
-#print('grad[d_gama1]=',grad['d_gama1'])
-#print('slp[d_gama1]=',slp['d_gama1'])
-#print('grad[d_gama0]=',grad['d_gama0'])
-#print('slp[d_gama0]=',slp['d_gama0'])
-#print('grad[d_k1]=\n',grad['d_k1'])
-#print('slp[d_k1]=\n',slp['d_k1'])
-#print('grad[d_k0]=\n',grad['d_k0'])
-#print('slp[d_k0]=\n',slp['d_k0'])
 grad_check(xin,lab,params,g,g_d)
 
-#print('params.keys()=\n',params.keys())
-#print('params[k0]=\n',params['k0'])
-#print('params[k1]=\n',params['k1'])
-#np.random.seed(2)
-#ttt=np.random.randn(2,3,3)
-#rtt=relu(ttt)
-#dtt=relu_d(ttt)
-#print('ttt=\n',ttt)
-#print('rtt=\n',rtt)
-#print('dtt=\n',dtt)
+np.random.seed(2)
+#t1=np.random.randn(2,4,4,1)*0.01
+#t1=np.arange(2*4*4*1).reshape(2,4,4,1)+1
+#col2=im2col(t1)
+#t2=col2im(col2)
+#print('col2=\n',col2)
+#print('t1=\n',t1.transpose(0,3,1,2))
+#print('t2=\n',t2.transpose(0,3,1,2))
+
+
+
+#
+#col1=np.arange(2*4*4*9).reshape(2,4,4,9)+1
+#nn=np.ones((2,4,4,1))
+#colnn=im2col(nn)
+#col1=col1*colnn
+#col1=np.random.randn(2,4,4,9)
+#t2=col2im(col1)
+#nn=np.ones(t2.shape)
+#col2=im2col(t2)
+#col3=col1*colnn
+#t3=col2im(col2)
+#print('col1==col2')
+#print(col1==col2)
+#print('col3==col2')
+#print(col3==col2)
+#print(t2==t3)
+#print('col1=\n',col1)
+#print('col2=\n',col2)
+#print('t2=\n',t2.transpose(0,3,1,2))
+#
+#
+##
+##col2=im2col(t1)
+###col2=col2+0.0001
+##t2=col2im(col2)
+##col3=im2col(t2)
+##print('col2.shape=',col2.shape)
+##print('t2.shape=',t2.shape)
+##print('col3.shape=',col3.shape)
+##t1=t1.transpose(0,3,1,2)
+##t2=t2.transpose(0,3,1,2)
+##print('t1=\n',t1)
+#print('t2=\n',t2)
+#print(t1==t2)
+#print(col2==col3)
+#
+#
 

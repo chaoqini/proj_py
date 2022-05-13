@@ -10,7 +10,7 @@ import time
 import copy
 
 
-(hhh,www)=(4,4)
+(imh,imw)=(28,28)
 #(hhh,www)=(12,12)
 
 ## ==========
@@ -96,6 +96,8 @@ def img_convolution(X,kfilter):
 	col1=colk@k1
 	return col1
 
+
+
 def im2col(im,k=3):
 	assert(im.ndim==4 and im.shape[-1]==1)
 	p=int(k/2)
@@ -107,7 +109,11 @@ def im2col(im,k=3):
 		for c in range(col_c):
 			col[:,r,c,:]=imp[:,r:r+k,c:c+k,0].reshape(imp.shape[0],-1)
 	return col
-	
+def conv(A,kf):
+	assert(A.ndim==4 and A.shape[-1]==1 and kf.ndim==2)
+	C=im2col(A,kf.shape[0])
+	Z=C@kf.reshape(-1,1)
+	return Z
 #def col2im(col,k=3,p=-1):
 def col2im(col,p=-1):
 	assert(col.ndim==4)
@@ -136,7 +142,7 @@ def maxpooling(X,k=2):
 	maxcols=np.max(cols,axis=2)
 	return maxcols
 
-def init_params(lays=3,k=3,nh=hhh,nw=www,ny=10,func=0,seed=0):
+def init_params(lays=4,k=3,nh=imh,nw=imw,ny=10,func=0,seed=0):
 #def init_params(lays=5,kr=3,nk=2,nh=hhh,nw=www,ny=10,func=0,seed=0):
 #def init_params(lays=3,kr=3,nk=2,nh=hhh,nw=www,ny=10,func=0,seed=0):
 #def init_params(lays=3,kr=3,nk=2,nh=28,nw=28,ny=10,func=0,seed=0):
@@ -222,7 +228,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 #	YL[np.arange(ba),LAB.reshape(ba),0,0]=1
 	YL[np.arange(ba),LAB.reshape(ba),0,0]=1
 	(l,d_,grad)=(int(len(params)/3),{},{})
-	print('l=',l)
+#	print('l=',l)
 	for i in range(l-1,-1,-1):
 		if i==l-1: wi=params['w'+str(i)]
 		else: ki=params['k'+str(i)]
@@ -275,42 +281,44 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 			grad['d_w'+str(i)]=d_wi.mean(axis=0)
 		else:
 #			d_Zi=np.expand_dims(d_Zi,axis=-2)
-			kir=ki.reshape(-1,1)
-			print('kir.shape=',kir.shape)
-			print('kir.T.shape=',kir.T.shape)
-			d_Ci_1=np.einsum('mhwn,kn->mhwk',d_Zi,kir)
-			print('d_Z%s.shape='%i,d_Zi.shape)
-			print('d_C%s.shape='%(i-1),d_Ci_1.shape)
-			print('d_C%s=\n'%(i-1),d_Ci_1)
+#			kir=ki.reshape(-1,1)
+			kifp=np.flip(ki)
+#			print('kir.shape=',kir.shape)
+#			print('kir.T.shape=',kir.T.shape)
+#			d_Ci_1=np.einsum('mhwn,kn->mhwk',d_Zi,kir)
+			d_Ai_1=conv(d_Zi,kifp)
+#			print('d_Z%s.shape='%i,d_Zi.shape)
+#			print('d_C%s.shape='%(i-1),d_Ci_1.shape)
+#			print('d_C%s=\n'%(i-1),d_Ci_1)
 
 #			d_Ci_1=d_Zi@kir.T
 #			print('d_Zi.shape=',d_Zi.shape)
-			print('k%s.shape='%i,ki.shape)
-			print('k%s.shape[1]='%i,ki.shape[1])
+#			print('k%s.shape='%i,ki.shape)
+#			print('k%s.shape[1]='%i,ki.shape[1])
 #			d_Ai_1=col2im(d_Ci_1,ki.shape[1])
 			
 #			d_Ci_1_tmp2=copy.deepcopy(d_Ci_1)
-			d_Ai_1=col2im(d_Ci_1)
-			print('d_Ai_1.shape=',d_Ai_1.shape)
-			print('d_Ci_1.shape=',d_Ci_1.shape)
+#			d_Ai_1=col2im(d_Ci_1)
+#			print('d_Ai_1.shape=',d_Ai_1.shape)
+#			print('d_Ci_1.shape=',d_Ci_1.shape)
 #			print('d_Ci_1=\n',d_Ci_1)
 #			print('d_Ci_1=\n',d_Ci_1.transpose(0,3,1,2))
 #			print('d_Ai_1=\n',d_Ai_1.transpose(0,3,1,2))
 #			d_Ci_1_tmp=im2col(d_Ai_1)
-			print('i=',i)
+#			print('i=',i)
 #			print('d_Ci_1==d_Ci_1_tmp')
 #			print(d_Ci_1==d_Ci_1_tmp)
 #			print('d_Ci_1==d_Ci_1_tmp2')
 #			print(d_Ci_1==d_Ci_1_tmp2)
 			Ci_1=OP['C'+str(i-1)]
-			print('C%s.shape='%(i-1),Ci_1.shape)
+#			print('C%s.shape='%(i-1),Ci_1.shape)
 #			d_ki=np.einsum('mhwk,mhwn->mkn',Ci_1,d_Zi)
 			d_ki=np.einsum('mhwk,mhwn->mkn',Ci_1,d_Zi)
 #			print('d_ki.shape bf =',d_ki.shape)
 #			d_ki=d_ki.reshape(d_ki.shape[0],ki.shape[1],-1)
 			d_ki=d_ki.reshape((d_ki.shape[0],)+ki.shape)
 #			print('ki.shape=',ki.shape)
-			print('d_k%s.shape='%i,d_ki.shape)
+#			print('d_k%s.shape='%i,d_ki.shape)
 			grad['d_k'+str(i)]=d_ki.mean(axis=0)
 		if i>=1:
 #			print('3: i=',i)
@@ -391,10 +399,10 @@ def grad_check(x,lab,params,g,g_d,dv=1e-2):
 		l2_v1d2=np.linalg.norm(v1-v2)
 		abs_error[k]=l2_v1d2
 		ratio_error[k]=l2_v1d2/(l2_v1+l2_v2)
-	for (k,v) in y1.items():
-		if v.size<12:
-			print('grad[%s]=\n'%k,y1[k])
-			print('slope[%s]=\n'%k,y2[k])
+#	for (k,v) in y1.items():
+#		if v.size<12:
+#			print('grad[%s]=\n'%k,y1[k])
+#			print('slope[%s]=\n'%k,y2[k])
 
 	print('grad_check: abs_error=\n',abs_error)
 	print('grad_check: ratio_error=\n',ratio_error)
@@ -419,19 +427,21 @@ n=1
 #lab=mnist.test_lab[n].squeeze()
 #xin=xin.reshape(1,28,28,1)
 xin=mnist.test_img[n:n+2]
-lab=mnist.test_lab[n:n+2].squeeze()
-#xin=xin.reshape(2,28,28,1)
-np.random.seed(1)
-xin=np.random.randn(2,hhh,www,1)+0.3
-lab=lab.reshape(2,1,1)
+lab=mnist.test_lab[n:n+2]
+print('xin.shape=',xin.shape)
+#lab=mnist.test_lab[n:n+2].squeeze()
+xin=xin.reshape(2,28,28,1)
+#np.random.seed(1)
+#xin=np.random.randn(2,hhh,www,1)+0.3
+#lab=lab.reshape(2,1,1)
 
 #y=fp(xin,params,g)
 #(y,OP)=fp(xin,params,g,isop=1)
 #def bp(X,LAB,params,g,g_d,e=1e-8):
 #grad=bp(xin,lab,params,g,g_d)
-#grad_check(xin,lab,params,g,g_d)
+grad_check(xin,lab,params,g,g_d)
 
-np.random.seed(2)
+#np.random.seed(2)
 #t1=np.random.randn(2,4,4,1)*0.01
 #t1=np.arange(2*4*4*1).reshape(2,4,4,1)+1
 #col2=im2col(t1)
@@ -443,23 +453,23 @@ np.random.seed(2)
 
 
 #
-col1=np.arange(2*4*4*9).reshape(2,4,4,9)+1
-nn=np.ones((2,4,4,1))
-colnn=im2col(nn)
-col1=col1*colnn
+#col1=np.arange(2*4*4*9).reshape(2,4,4,9)+1
+#nn=np.ones((2,4,4,1))
+#colnn=im2col(nn)
+#col1=col1*colnn
 #col1=np.random.randn(2,4,4,9)
-t2=col2im(col1)
+#t2=col2im(col1)
 #nn=np.ones(t2.shape)
-col2=im2col(t2)
+#col2=im2col(t2)
 #col3=col1*colnn
 #t3=col2im(col2)
-print('col1==col2')
-print(col1==col2)
+#print('col1==col2')
+#print(col1==col2)
 #print('col3==col2')
 #print(col3==col2)
 #print(t2==t3)
-print('col1=\n',col1)
-print('col2=\n',col2)
+#print('col1=\n',col1)
+#print('col2=\n',col2)
 #print('t2=\n',t2.transpose(0,3,1,2))
 #
 #
