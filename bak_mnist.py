@@ -25,24 +25,28 @@ test_num=10000
 with open(train_img_path,'rb') as f:
     struct.unpack('>4i',f.read(16))
     tmp_img=np.fromfile(f,dtype=np.uint8).reshape(-1,28*28,1)
+#    tmp_img=np.fromfile(f,dtype=np.uint8).reshape(-1,1,28*28)
     train_img=tmp_img[:train_num]
     valid_img=tmp_img[train_num:]
 with open(test_img_path,'rb') as f:
     struct.unpack('>4i',f.read(16))
     test_img=np.fromfile(f,dtype=np.uint8).reshape(-1,28*28,1)
+#    test_img=np.fromfile(f,dtype=np.uint8).reshape(-1,1,28*28)
 with open(train_lab_path,'rb') as f:
     struct.unpack('>2i',f.read(8))
     tmp_lab=np.fromfile(f,dtype=np.uint8)
-    train_lab=tmp_lab[:train_num]
-    valid_lab=tmp_lab[train_num:]
+    train_lab=tmp_lab[:train_num].reshape(-1,1,1)
+    valid_lab=tmp_lab[train_num:].reshape(-1,1,1)
 with open(test_lab_path,'rb') as f:
     struct.unpack('>2i',f.read(8))
     test_lab=np.fromfile(f,dtype=np.uint8)
-def plot(img,h=28,w=28):
-    img=img.reshape(h,-1)
-    plt.imshow(img,cmap='gray')
-    plt.show()
-
+    test_lab=test_lab.reshape(-1,1,1)
+#
+#def plot(img,h=28,w=28):
+#    img=img.reshape(h,-1)
+#    plt.imshow(img,cmap='gray')
+#    plt.show()
+#
 #n=np.random.randint(50000)
 #img=train_img[n].reshape(28,28)
 #plt.imshow(img,cmap='gray')

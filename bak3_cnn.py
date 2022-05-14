@@ -38,17 +38,17 @@ def relu_d(x,kn=0):
 	y=y.reshape(x.shape)
 	return y
 def softmax(X): 
-#	assert(X.ndim==4)
-	exp=np.exp(X-np.max(X,axis=(1,2),keepdims=1))
-	expsum=np.sum(exp,axis=(1,2),keepdims=1)
+	assert(X.ndim==4)
+	exp=np.exp(X-np.max(X,axis=(1,2,3),keepdims=1))
+	expsum=np.sum(exp,axis=(1,2,3),keepdims=1)
 	return exp/expsum
 def cross_entropy(X,LAB,params,g,isvalid=0):
-#	assert(X.ndim==4)
+	assert(X.ndim==4)
 #	print('cross_entropy')
 	Y=fp(X,params,g)
 	ba=Y.shape[0]
 	YL=np.zeros(Y.shape)
-	YL[np.arange(ba),LAB.reshape(ba),0]=1
+	YL[np.arange(ba),LAB.reshape(ba),0,0]=1
 	LOSS=-np.sum(YL*np.log(Y))
 	cost=LOSS/ba
 	if isvalid==0:
@@ -70,15 +70,15 @@ def cross_entropy(X,LAB,params,g,isvalid=0):
 ## ==========
 #@jit(nopython=True)
 def im2col(im,k=3,byte=1):
-#	assert(im.ndim==4 and im.shape[-1]==1)
+	assert(im.ndim==4 and im.shape[-1]==1)
 	p=int(k/2)
-	(ba,h,w)=im.shape
-	imp=np.pad(im,((0,0),(p,p),(p,p)))
-	(ba,hp,wp)=imp.shape
+	(ba,h,w,non)=im.shape
+	imp=np.pad(im,((0,0),(p,p),(p,p),(0,0)))
+	(ba,hp,wp,n)=imp.shape
 	strd=(hp*wp,wp,1,wp,1)
 	strd=(i*byte for i in strd)
 	col=np.lib.stride_tricks.as_strided(imp,shape=(ba,h,w,k,k),strides=strd)
-#	col=col.reshape(ba,h,w,k*k)
+	col=col.reshape(ba,h,w,k*k)
 	return col
 
 def im2col2(im,k=3):
@@ -142,7 +142,7 @@ def init_params(lays=lays,k=convk,nh=imh,nw=imw,ny=10,func=0,seed=0):
 (params,params_init,g,g_d)=init_params()
 
 def fp(X,params,g,isop=0,e=1e-8):
-#	assert(X.ndim==4)
+	assert(X.ndim==4)
 	ba=X.shape[0]
 	(l,OP)=(int(len(params)/3),{})
 	OP['A-1']=X
@@ -150,19 +150,17 @@ def fp(X,params,g,isop=0,e=1e-8):
 		Ai_1=OP['A'+str(i-1)]
 		if i==l-1:
 			wi=params['w'+str(i)]
-			Zi=np.einsum('mhw,hwo->mo',Ai_1,wi)
-#			Zi=Zi.reshape(Zi.shape+(1,))
-			Zi=np.expand_dims(Zi,-1)
+			Zi=np.einsum('mhwp,hwo->mop',Ai_1,wi)
+			Zi=Zi.reshape(Zi.shape+(1,))
 		else:
 			ki=params['k'+str(i)]
-			coli=im2col(Ai_1,ki.shape[1])
-#			Zi=coli_1@(ki.reshape(-1,1))
-			Zi=np.einsum('mhwij,ij->mhw',coli,ki)
-			OP['C'+str(i-1)]=coli
+			coli_1=im2col(Ai_1,ki.shape[1])
+			Zi=coli_1@(ki.reshape(-1,1))
+			OP['C'+str(i-1)]=coli_1
 		gamai=params['gama'+str(i)]
 		betai=params['beta'+str(i)]
-		ui=Zi.mean((1,2),keepdims=1)
-		vi=Zi.var((1,2),keepdims=1)
+		ui=Zi.mean((1,2,3),keepdims=1)
+		vi=Zi.var((1,2,3),keepdims=1)
 		Xi=(Zi-ui)/(vi+e)**0.5
 		Yi=gamai*Xi+betai
 		Ai=g[i](Yi)
@@ -180,20 +178,20 @@ def fp(X,params,g,isop=0,e=1e-8):
 
 ## ==========
 def bp(X,LAB,params,g,g_d,e=1e-8):
-#	tb=time.time()
-#	tt={}
-#	tt2=[]
-#	assert(X.ndim==4)
+	tb=time.time()
+	tt={}
+	tt2=[]
+	assert(X.ndim==4)
 	(Y,OP)=fp(X,params,g,isop=1)
 	ba=Y.shape[0]
 	YL=np.zeros(Y.shape)
-	YL[np.arange(ba),LAB.reshape(ba),0]=1
+	YL[np.arange(ba),LAB.reshape(ba),0,0]=1
 	(l,d_,grad)=(int(len(params)/3),{},{})
-#	tt['1']=(time.time()-tb)*1e3
-#	tt2.append((time.time()-tb)*1e3)
+	tt['1']=(time.time()-tb)*1e3
+	tt2.append((time.time()-tb)*1e3)
 	for i in range(l-1,-1,-1):
-#		tt[str(i)+'_0']=time.time()
-#		tt2.append((time.time()-tb)*1e3)
+		tt[str(i)+'_0']=time.time()
+		tt2.append((time.time()-tb)*1e3)
 		if i==l-1: wi=params['w'+str(i)]
 		else: ki=params['k'+str(i)]
 		gamai=params['gama'+str(i)]
@@ -201,54 +199,54 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 		ui=OP['u'+str(i)]
 		vi=OP['v'+str(i)]
 		Xi=OP['X'+str(i)]
-#		tt[str(i)+'_1']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
+		tt[str(i)+'_1']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
 		if i==l-1: d_Yi=Y-YL
 		else: d_Yi=d_['Y'+str(i)]
-#		tt[str(i)+'_2']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
+		tt[str(i)+'_2']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
 		d_Xi=gamai*d_Yi
-		XX=np.einsum('mij,mkl->mijkl',Xi,Xi)
+		XX=np.einsum('mijn,mkln->mijkln',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
-		np.einsum('mijij->mij',mmE)[:]=mmE.shape[1]*mmE.shape[2]
-#		tt[str(i)+'_3']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
+		np.einsum('mijijn->mijn',mmE)[:]=mmE.shape[1]*mmE.shape[2]
+		tt[str(i)+'_3']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
 		vi=vi.reshape(vi.shape+(1,1))
 		dXi_Zi=(mmE-Imm-XX)/(mmE.shape[1]*mmE.shape[2]*(vi+e)**0.5)
-		d_Zi=np.einsum('mklij,mij->mkln',dXi_Zi,d_Xi)
-#		tt[str(i)+'_4']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
+		d_Zi=np.einsum('mklijn,mijn->mkln',dXi_Zi,d_Xi)
+		tt[str(i)+'_4']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
 		if i==l-1: 
 			Ai_1=OP['A'+str(i-1)]
-			d_Ai_1=np.einsum('mop,hwo->mhw',d_Zi,wi)
-			d_wi=np.einsum('mhw,mop->mhwo',Ai_1,d_Zi)
+			d_Ai_1=np.einsum('mopq,hwo->mhwq',d_Zi,wi)
+			d_wi=np.einsum('mhwp,mopq->mhwo',Ai_1,d_Zi)
 			grad['d_w'+str(i)]=d_wi.mean(0)
 		else:
 			d_Ai_1=conv(d_Zi,np.flip(ki))
 			Ci_1=OP['C'+str(i-1)]
-			d_ki=np.einsum('mhwij,mhw->mij',Ci_1,d_Zi)
-#			d_ki=d_ki.reshape((d_ki.shape[0],)+ki.shape)
+			d_ki=np.einsum('mhwk,mhwn->mkn',Ci_1,d_Zi)
+			d_ki=d_ki.reshape((d_ki.shape[0],)+ki.shape)
 			grad['d_k'+str(i)]=d_ki.mean(0)
 #			d_ki=np.einsum('mhwk,mhwn->k',Ci_1,d_Zi)
 #			d_ki=d_ki.reshape(ki.shape)
 #			grad['d_k'+str(i)]=d_ki*Ci_1.shape[0]
-#		tt[str(i)+'_5']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
+		tt[str(i)+'_5']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
 		if i>=1:
 			Yi_1=OP['Y'+str(i-1)]
 			d_Yi_1=g_d[i-1](Yi_1)*d_Ai_1
 			d_['Y'+str(i-1)]=d_Yi_1
-#		tt[str(i)+'_6']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
+		tt[str(i)+'_6']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
 		d_gamai=(d_Yi*Xi).sum()/d_Yi.shape[0]
 		d_betai=(d_Yi).sum()/d_Yi.shape[0]
 		grad['d_gama'+str(i)]=d_gamai
 		grad['d_beta'+str(i)]=d_betai
-#		tt[str(i)+'_7']=(time.time()-tb)*1e3
-#		tt2.append((time.time()-tb)*1e3)
-#	print('tt=\n',tt)
-#	print('tt2=\n',tt2)
+		tt[str(i)+'_7']=(time.time()-tb)*1e3
+		tt2.append((time.time()-tb)*1e3)
+	print('tt=\n',tt)
+	print('tt2=\n',tt2)
 	return grad
 	
 def slope(x,lab,params,g,dv=1e-5):
@@ -333,14 +331,14 @@ def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,ist
 		pn=i%(max(int(len(X)/10),1))
 		if pn==0 or i==len(X)-1:
 			print('Training iteration number = %s/%s'%(i,len(X)))
-#		Xi=np.expand_dims(X[i],-1)
-#		LABi=np.expand_dims(LAB[i],-1)
-		grad=bp(X[i],LAB[i],params,g,g_d)
+		Xi=np.expand_dims(X[i],-1)
+		LABi=np.expand_dims(LAB[i],-1)
+		grad=bp(Xi,LABi,params,g,g_d)
 		lr=lr0*klr**i
 		lra.append(lr)
 		if i==0: (v,s)=init_adam(params)
 		else: (params,v,s)=update_params_adam(params,grad,lr,v,s,i)
-		(cost_i,valid_per,correct)=g[-1](X[i],LAB[i],params,g,1)
+		(cost_i,valid_per,correct)=g[-1](Xi,LABi,params,g,1)
 		cost.append(cost_i)
 #		if isl2grad==1:
 #			for (kt,vt) in grad.items():
@@ -400,11 +398,11 @@ def valid(params,g,batch=0,batches=0):
 #	 print('Valid batch running ...')
 	for i in range(len(X)):
 		pn=i%(max(int(len(X)/10),1))
-#		Xi=np.expand_dims(X[i],-1)
+		Xi=np.expand_dims(X[i],-1)
 #		print('X%s.shape='%i,Xi.shape)
 #		LABi=np.expand_dims(LAB[i],-1)
 #def cross_entropy(X,LAB,params,g,isvalid=0):
-		(cost_i,valid_per_i,correct_i)=g[-1](X[i],LAB[i],params,g,1)
+		(cost_i,valid_per_i,correct_i)=g[-1](Xi,LAB[i],params,g,1)
 #		print('cost_%s='%i,cost_i)
 #		print('valid_per_%s='%i,valid_per_i)
 #		print('correct_%s.shape='%i,correct_i.shape)
@@ -438,8 +436,8 @@ def valid_train(params,g,batch=0,batches=0):
 #	 print('Valid_train batch running ...')
 	for i in range(len(X)):
 		pn=i%(max(int(len(X)/10),1))
-#		Xi=np.expand_dims(X[i],-1)
-		(cost_i,valid_per_i,correct_i)=g[-1](X[i],LAB[i],params,g,1)
+		Xi=np.expand_dims(X[i],-1)
+		(cost_i,valid_per_i,correct_i)=g[-1](Xi,LAB[i],params,g,1)
 		cost.append(cost_i)
 		valid_per.append(valid_per_i)
 		correct.append(correct_i)
@@ -520,13 +518,6 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 	plt.show()
 	return params
 
-
-#(params,params_init,g,g_d)=init_params()
-#x=mnist.train_img[0:2]
-x=np.random.randn(2,4,4)
-lab=mnist.train_lab[0:2]
-grad_check(x,lab,params,g,g_d,dv=1e-5)
-#def grad_check(x,lab,params,g,g_d,dv=1e-5):
 #def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=0,isl2grad=1):
 #(params,lre)=batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=0,isl2grad=1)
 #show(params,g)
