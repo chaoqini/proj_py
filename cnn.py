@@ -273,6 +273,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8):
 			vi=np.expand_dims(vi,(-2,-1))
 			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
 			d_Zi=np.einsum('bcijkl,bckl->bcij',dXi_Zi,d_Xi)
+#			ki_fl=ki
 			ki_fl=np.flip(ki,(-2,-1))
 #			d_Ai_1=np.einsum('bmhw,mcij->bchw',d_Zi,ki_fl)
 			d_Ai_1=np.einsum('bmhw,mcij->bchw',d_Zi,ki_fl)
@@ -610,8 +611,8 @@ print('x.shape=',x.shape)
 #def cross_entropy(X,LAB,params,g,isvalid=0):
 #y=fp(x,params,g)
 #cost=g[-1](x,lab,params,g)
-grad=bp(x,lab,params,g,g_d)
-#(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
+#grad=bp(x,lab,params,g,g_d)
+(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
 #
 
 #col=im2col(x)
