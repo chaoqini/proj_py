@@ -184,14 +184,12 @@ def fp(X,params,g,isop=0,e=1e-8):
 		else:
 			ki=params['k'+str(i)]
 			Ci_1=im2col(Ai_1,ki.shape[-1])
+			OP['C'+str(i-1)]=Ci_1
 #			print('fp: col%s.shape='%i,coli.shape)
 #			print('coli=\n',coli)
 #			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
 #			print('fp k%s.shape='%i,ki.shape)
 			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-			OP['C'+str(i-1)]=Ci_1
-			gamai=params['gama'+str(i)]
-			betai=params['beta'+str(i)]
 			ui=Zi.mean((-2,-1),keepdims=1)
 			vi=Zi.var((-2,-1),keepdims=1)
 #		print('fp: Z%s.shape='%i,Zi.shape)
@@ -200,6 +198,8 @@ def fp(X,params,g,isop=0,e=1e-8):
 #		print('fp: gama%s.shape='%i,gamai.shape)
 #		print('fp: beta%s.shape='%i,betai.shape)
 			Xi=(Zi-ui)/(vi+e)**0.5
+			gamai=params['gama'+str(i)]
+			betai=params['beta'+str(i)]
 			Yi=gamai*Xi+betai
 		Ai=g[i](Yi)
 #		print('fp: A%s=\n'%(i-1),Ai_1.squeeze())
