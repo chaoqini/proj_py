@@ -17,7 +17,6 @@ import copy
 #(imba,imh,imw,lays,convk)=(3,28,28,3,3)
 #(imba,imch,imh,imw,lays,convk)=(2,1,5,6,4,3)
 (imba,imch,imh,imw,lays,convk)=(1,1,5,6,4,3)
-#(imba,imch,imh,imw,lays,convk)=(3,1,5,6,4,3)
 #(imba,imch,imh,imw,lays,convk)=(2,1,28,28,4,3)
 
 ## ==========
@@ -57,30 +56,31 @@ def softmax(x):
 #	print('softmax: expsum.shape=',expsum.shape)
 	return y
 def cross_entropy(x,lab,params,g,isvalid=0):
+#	assert(X.ndim==4)
 	y=fp(x,params,g)
+#	print('cross_entropy: y.shape=',y.shape)
+#	print('cross_entropy: y=\n',y.squeeze())
 	ba=y.shape[0]
 	yl=np.zeros(y.shape)
 	yl[np.arange(ba),0,lab.reshape(ba),0]=1
+#	loss=-np.sum(yl*np.log(y),(-2,-1),keepdims=1)
 	loss=-np.sum(yl*np.log(y))
 	cost=loss/ba
+#	print('LOSS.shape=',LOSS.shape)
+#	print('LOSS=\n',LOSS)
+#	print('YL=\n',YL.squeeze())
 	if isvalid==0:
 		return cost
 	else:
-		correct=(np.argmax(Y,-2)==np.argmax(YL,-2))
-		valid_per=correct.sum()/len(correct)
-		return (cost,valid_per,correct)
-def loss_check(x,lab,params,g,isvalid=0,dv=0):
-	y=fpdv(x,params,g,dv=dv)
-	ba=y.shape[0]
-	yl=np.zeros(y.shape)
-	yl[np.arange(ba),0,lab.reshape(ba),0]=1
-#	print('loss_check: y=\n',y.squeeze())
-#	print('loss_check: yl=\n',yl.squeeze())
-	loss=-np.sum(yl*np.log(y))
-	cost=loss/ba
-	if isvalid==0:
-		return cost
-	else:
+#		print('Y.shape=',Y.shape)
+#		print('Y[1]=',Y[1])
+#		print('YL[1]=',YL[1])
+#		y1d_max=np.max(Y,axis=1,keepdims=1)
+#		Y=np.trunc(Y/y1d_max)
+#		cmp=(Y==YL)
+#		print('cmp.shape=',cmp.shape)
+#		correct=np.trunc(np.sum(cmp,axis=1)/cmp.shape[1])
+#		print('correct.shape=',correct.shape)
 		correct=(np.argmax(Y,-2)==np.argmax(YL,-2))
 		valid_per=correct.sum()/len(correct)
 		return (cost,valid_per,correct)
@@ -169,42 +169,6 @@ def maxpooling(X,k=2):
 			cols[:,r,:,c]=X[:,k*r:k*r+k,k*c:k*c+k].reshape(X.shape[0],-1)
 	maxcols=np.max(cols,axis=2)
 	return maxcols
-## ==========
-def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
-	ba=X.shape[0]
-	(l,OP)=(int(len(params)/3)+1,{})
-	OP['A-1']=X
-	for i in range(l) :
-		Ai_1=OP['A'+str(i-1)]
-#		if i==2: Ai_1[0,0,0,1]+=dv
-		if i==l-1:
-			wi=params['w'+str(i)]
-			Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
-			Yi=np.expand_dims(Zi,(1,-1))
-		else:
-			ki=params['k'+str(i)]
-			Ci_1=im2col(Ai_1,ki.shape[-1])
-			OP['C'+str(i-1)]=Ci_1
-			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-#			if i==2: Zi[0,0,0,2]+=dv
-			ui=Zi.mean((-2,-1),keepdims=1)
-			vi=Zi.var((-2,-1),keepdims=1)
-			Xi=(Zi-ui)/(vi+e)**0.5
-			gamai=params['gama'+str(i)]
-			betai=params['beta'+str(i)]
-			Yi=gamai*Xi+betai
-		Ai=g[i](Yi)
-		OP['Z'+str(i)]=Zi
-		OP['X'+str(i)]=Xi
-		OP['Y'+str(i)]=Yi
-		OP['A'+str(i)]=Ai
-		OP['u'+str(i)]=ui
-		OP['v'+str(i)]=vi
-	Y=OP['A'+str(l-1)]
-	if isop==0: 
-		return Y
-	else: 
-		return (Y,OP)
 
 
 def fp(X,params,g,isop=0,e=1e-8):
@@ -268,7 +232,7 @@ def fp(X,params,g,isop=0,e=1e-8):
 		return (Y,OP)
 
 ## ==========
-def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
+def bp(X,LAB,params,g,g_d,e=1e-8):
 #	tb=time.time()
 #	tt={}
 #	tt2=[]
@@ -295,12 +259,10 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			Xi=OP['X'+str(i)]
 			Ci_1=OP['C'+str(i-1)]
 			d_Yi=d_['Y'+str(i)]
-			d_['Y'+str(i)]=d_Yi
 			d_Xi=gamai*d_Yi
-			d_['X'+str(i)]=d_Xi
-#			print('bp: gama%s.shape='%i,gamai.shape)
-#			print('bp: d_Y%s.shape='%i,d_Yi.shape)
-#			print('bp: d_X%s.shape='%i,d_Xi.shape)
+			print('bp: gama%s.shape='%i,gamai.shape)
+			print('bp: d_Y%s.shape='%i,d_Yi.shape)
+			print('bp: d_X%s.shape='%i,d_Xi.shape)
 			d_gamai=(d_Yi*Xi).sum((-2,-1),keepdims=1)
 			d_betai=(d_Yi).sum((-2,-1),keepdims=1)
 			grad['d_gama'+str(i)]=d_gamai.mean(0)
@@ -312,30 +274,13 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			vi=np.expand_dims(vi,(-2,-1))
 			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
 			d_Zi=np.einsum('bcijkl,bckl->bcij',dXi_Zi,d_Xi)
-			d_['Z'+str(i)]=d_Zi
 #			ki_fl=ki
-#			print('bp: ki=\n',ki.squeeze())
 			ki_fl=np.flip(ki,(-2,-1))
-#			print('bp: ki2=\n',ki.squeeze())
-#			print('bp: ki_fl=\n',ki_fl.squeeze())
-
-
-#			ki=params['k'+str(i)]
-#			Ci_1=im2col(Ai_1,ki.shape[-1])
-#			OP['C'+str(i-1)]=Ci_1
-#			print('fp: col%s.shape='%i,coli.shape)
-#			print('coli=\n',coli)
-#			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
-#			print('fp k%s.shape='%i,ki.shape)
-#			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-
 #			d_Ai_1=np.einsum('bmhw,mcij->bchw',d_Zi,ki_fl)
-			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
-			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
-			d_['A'+str(i-1)]=d_Ai_1
+			d_Ai_1=np.einsum('bmhw,mcij->bchw',d_Zi,ki_fl)
 			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
-#			print('bp: k%s.shape='%i,ki.shape)
-#			print('bp: k%s_fl.shape='%i,ki_fl.shape)
+			print('bp: k%s.shape='%i,ki.shape)
+			print('bp: k%s_fl.shape='%i,ki_fl.shape)
 			grad['d_k'+str(i)]=d_ki.mean(0)
 		if i>=1:
 			Yi_1=OP['Y'+str(i-1)]
@@ -358,10 +303,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 #		tt2.append((time.time()-tb)*1e3)
 #	print('tt=\n',tt)
 #	print('tt2=\n',tt2)
-	if isop==0: 
-		return grad
-	else: 
-		return (grad,d_)
+	return grad
 	
 def slope(x,lab,params,g,dv=1e-5):
 	slp={}
@@ -656,7 +598,7 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 
 #(imba,imh,imw,lays,convk)=(2,4,5,2,3)
 #ch=2
-np.random.seed(2)
+np.random.seed(1)
 lab=mnist.train_lab[0:imba]
 #x=mnist.train_img[0:imba]
 x=np.random.randn(imba,1,imh,imw)*1e-2
@@ -674,23 +616,6 @@ print('x.shape=',x.shape)
 (grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
 #
 
-#def loss_check(x,lab,params,g,isvalid=0):
-#def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
-#def fpdv(X,params,g,isop=0,e=1e-8,dv=1e-5):
-#(grad,d_)=bp(x,lab,params,g,g_d,isop=1)
-#ldv=1e-5
-#lv1=loss_check(x,lab,params,g,dv=-ldv)
-#lv2=loss_check(x,lab,params,g,dv=ldv)
-#lkk=(lv2-lv1)/(ldv*2)
-#print('d_.keys()=',d_.keys())
-##print('d_[Z2].shape=',d_['Z2'].shape)
-##print('d_[Z2]=\n',d_['Z2'].squeeze())
-#print('d_[A1].shape=',d_['A1'].shape)
-#print('d_[A1]=\n',d_['A1'].squeeze())
-##print('lv1=',lv1)
-##print('lv2=',lv2)
-#print('lkk=',lkk)
-
 #col=im2col(x)
 #xp=np.pad(x,((0,0),(0,0),(1,1),(1,1)))
 #print('x=\n',x)
@@ -705,10 +630,10 @@ print('x.shape=',x.shape)
 #ym=y[1 if i==1 else 0 for i in y]
 #ym=y/y.max((-3,-2,-1),keepdims=1)
 #ym2=np.trunc(ym)
-#print('x=\n',x.squeeze())
+print('x=\n',x.squeeze())
 #print('grad[d_w%s]=\n'%(lays-1),grad['d_w'+str(lays-1)].squeeze())
 #print('slp[d_w%s]=\n'%(lays-1),slp['d_w'+str(lays-1)].squeeze())
-#print('x.shape=',x.shape)
+print('x.shape=',x.shape)
 #print('grad[d_w%s].shape='%(lays-1),grad['d_w'+str(lays-1)].shape)
 #print('slp[d_w%s].shape='%(lays-1),slp['d_w'+str(lays-1)].shape)
 #print('y.shape=',y.shape)

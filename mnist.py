@@ -17,14 +17,14 @@ test_num=10000
 
 with open(train_img_path,'rb') as f:
 		struct.unpack('>4i',f.read(16))
-		tmp_img=np.fromfile(f,dtype=np.uint8).reshape(-1,28,28)
-#		 tmp_img=np.fromfile(f,dtype=np.uint8).reshape(-1,1,28*28)
+#		tmp_img=np.fromfile(f,dtype=np.uint8).reshape(-1,28,28)
+		tmp_img=np.fromfile(f,dtype=np.uint8).reshape(-1,1,28,28)
 		train_img=tmp_img[:train_num]
 		valid_img=tmp_img[train_num:]
 with open(test_img_path,'rb') as f:
 		struct.unpack('>4i',f.read(16))
-		test_img=np.fromfile(f,dtype=np.uint8).reshape(-1,28,28)
-#		 test_img=np.fromfile(f,dtype=np.uint8).reshape(-1,1,28*28)
+#		test_img=np.fromfile(f,dtype=np.uint8).reshape(-1,28,28)
+		test_img=np.fromfile(f,dtype=np.uint8).reshape(-1,1,28,28)
 with open(train_lab_path,'rb') as f:
 		struct.unpack('>2i',f.read(8))
 		tmp_lab=np.fromfile(f,dtype=np.uint8)
