@@ -164,8 +164,7 @@ def maxpooling(im,k=2):
 	strd=(i*im.itemsize for i in strd)
 	col=np.lib.stride_tricks.as_strided(im,shape=(ba,c,hp,wp,k,k),strides=strd)
 	maxcol=np.max(col,(-2,-1))
-	cold=np.trunc(col/col.max((-2,-1),keepdims=1))
-	return maxcol,cold
+	return maxcol
 ## ==========
 def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
 	ba=X.shape[0]
@@ -224,7 +223,7 @@ def fp(X,params,g,isop=0,e=1e-8):
 #			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
 #			print('fp k%s.shape='%i,ki.shape)
 			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-			Mi,Zdi=maxpooling(Zi)
+			Mi=maxpooling(Zi)
 			ui=Mi.mean((-2,-1),keepdims=1)
 			vi=Mi.var((-2,-1),keepdims=1)
 #		print('fp: Z%s.shape='%i,Zi.shape)
@@ -236,11 +235,6 @@ def fp(X,params,g,isop=0,e=1e-8):
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			Yi=gamai*Xi+betai
-#			print('fp: Y%s.shape='%i,Yi.shape)
-#			img=Yi[0,0]
-#			print('fp: img.shape=',img.shape)
-#			plt.imshow(img,cmap='gray')
-#			plt.show()
 		Ai=g[i](Yi)
 #		print('fp: A%s=\n'%(i-1),Ai_1.squeeze())
 #		print('fp: C%s=\n'%(i-1),Ci_1.squeeze())
@@ -258,7 +252,6 @@ def fp(X,params,g,isop=0,e=1e-8):
 #			print('fp: Z%s.shape='%i,Zi.shape)
 #			print('fp: Y%s.shape='%i,Yi.shape)
 		OP['Z'+str(i)]=Zi
-		OP['Zd'+str(i)]=Zdi
 		OP['M'+str(i)]=Mi
 		OP['X'+str(i)]=Xi
 		OP['Y'+str(i)]=Yi
@@ -314,10 +307,8 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			mmE=np.zeros((XX.shape))
 			np.einsum('bcijij->bcij',mmE)[:]=mmE.shape[-2]*mmE.shape[-1]
 			vi=np.expand_dims(vi,(-2,-1))
-			dXi_Mi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
-			d_Mi=np.einsum('bcijkl,bckl->bcij',dXi_Mi,d_Xi)
-			Zdi=OP['Zd'+str(i)]
-			d_Zi=Zdi*np.expand_dims(d_Mi,(-2,-1))
+			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
+			d_Zi=np.einsum('bcijkl,bckl->bcij',dXi_Zi,d_Xi)
 #			d_['Z'+str(i)]=d_Zi
 #			ki_fl=ki
 #			print('bp: ki=\n',ki.squeeze())
@@ -673,11 +664,11 @@ x=mnist.train_img[0:imba]
 #def fp(X,params,g,isop=0,e=1e-8):
 #def bp(X,LAB,params,g,g_d,e=1e-8):
 #def cross_entropy(X,LAB,params,g,isvalid=0):
-#y=fp(x,params,g)
-#print('y.shape=',y.shape)
-#print('y=\n',y.squeeze())
+y=fp(x,params,g)
+print('y.shape=',y.shape)
+print('y=\n',y.squeeze())
 #cost=g[-1](x,lab,params,g)
-grad=bp(x,lab,params,g,g_d)
+#grad=bp(x,lab,params,g,g_d)
 #(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
 #
 
@@ -697,7 +688,6 @@ grad=bp(x,lab,params,g,g_d)
 ##print('lv1=',lv1)
 ##print('lv2=',lv2)
 #print('lkk=',lkk)
-print('grad.keys()=',grad.keys())
 
 #col=im2col(x)
 #xp=np.pad(x,((0,0),(0,0),(1,1),(1,1)))
@@ -728,6 +718,3 @@ print('grad.keys()=',grad.keys())
 #def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=0,isl2grad=1):
 #(params,lre)=batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=0,isl2grad=1)
 #show(params,g)
-#with open('cnn_p1.pkl', 'wb') as f: pickle.dump(params,f)
-#with open('cnn_p1.pkl', 'rb') as f: params2=pickle.load(f)
-

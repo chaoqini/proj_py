@@ -16,9 +16,10 @@ import copy
 #(imh,imw,lays,convk)=(28,28,3,3)
 #(imba,imh,imw,lays,convk)=(3,28,28,3,3)
 #(imba,imch,imh,imw,lays,convk)=(2,1,5,6,4,3)
-(imba,imch,imh,imw,lays,convk)=(1,1,5,6,4,3)
+#(imba,imch,imh,imw,lays,convk)=(1,1,5,6,4,3)
 #(imba,imch,imh,imw,lays,convk)=(3,1,5,6,4,3)
 #(imba,imch,imh,imw,lays,convk)=(2,1,28,28,4,3)
+(imba,imch,imh,imw,lays,convk)=(3,1,28,28,4,3)
 
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -41,9 +42,6 @@ def relu_d(x,kn=0):
 	y=y.reshape(x.shape)
 	return y
 def softmax(x): 
-#	assert(X.ndim==4)
-#	exp=np.exp(X-np.max(X,axis=(-2,-1),keepdims=1))
-#	expsum=np.sum(exp,axis=(-2,-1),keepdims=1)
 	xmax=np.max(x,(-2,-1),keepdims=1)
 #	exp=np.exp(X-np.max(X,(-3,-2,-1),keepdims=1))
 	exp=np.exp(x-xmax)
@@ -295,9 +293,8 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			Xi=OP['X'+str(i)]
 			Ci_1=OP['C'+str(i-1)]
 			d_Yi=d_['Y'+str(i)]
-			d_['Y'+str(i)]=d_Yi
 			d_Xi=gamai*d_Yi
-			d_['X'+str(i)]=d_Xi
+#			d_['X'+str(i)]=d_Xi
 #			print('bp: gama%s.shape='%i,gamai.shape)
 #			print('bp: d_Y%s.shape='%i,d_Yi.shape)
 #			print('bp: d_X%s.shape='%i,d_Xi.shape)
@@ -312,14 +309,12 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			vi=np.expand_dims(vi,(-2,-1))
 			dXi_Zi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
 			d_Zi=np.einsum('bcijkl,bckl->bcij',dXi_Zi,d_Xi)
-			d_['Z'+str(i)]=d_Zi
+#			d_['Z'+str(i)]=d_Zi
 #			ki_fl=ki
 #			print('bp: ki=\n',ki.squeeze())
 			ki_fl=np.flip(ki,(-2,-1))
 #			print('bp: ki2=\n',ki.squeeze())
 #			print('bp: ki_fl=\n',ki_fl.squeeze())
-
-
 #			ki=params['k'+str(i)]
 #			Ci_1=im2col(Ai_1,ki.shape[-1])
 #			OP['C'+str(i-1)]=Ci_1
@@ -328,11 +323,10 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 #			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
 #			print('fp k%s.shape='%i,ki.shape)
 #			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-
 #			d_Ai_1=np.einsum('bmhw,mcij->bchw',d_Zi,ki_fl)
 			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
 			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
-			d_['A'+str(i-1)]=d_Ai_1
+#			d_['A'+str(i-1)]=d_Ai_1
 			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
 #			print('bp: k%s.shape='%i,ki.shape)
 #			print('bp: k%s_fl.shape='%i,ki_fl.shape)
@@ -656,10 +650,11 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 
 #(imba,imh,imw,lays,convk)=(2,4,5,2,3)
 #ch=2
-np.random.seed(2)
+#np.random.seed(2)
 lab=mnist.train_lab[0:imba]
-#x=mnist.train_img[0:imba]
-x=np.random.randn(imba,1,imh,imw)*1e-2
+x=mnist.train_img[0:imba]
+#x=np.expand_dims(x,1)
+#x=np.random.randn(imba,1,imh,imw)*1e-2
 #x=np.random.randn(2,10,1,1)
 #x=np.arange(10).reshape(1,10,1,1)+1
 print('x.shape=',x.shape)
