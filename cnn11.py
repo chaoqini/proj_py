@@ -19,6 +19,7 @@ import copy
 #(imba,imch,imh,imw,lays,convk)=(1,1,5,6,4,3)
 #(imba,imch,imh,imw,lays,convk)=(3,1,5,6,4,3)
 #(imba,imch,imh,imw,lays,convk)=(2,1,28,28,4,3)
+#(imba,imch,imh,imw,lays,convk)=(3,1,28,28,3,3)
 (imba,imch,imh,imw,lays,convk)=(3,1,28,28,4,3)
 
 ## ==========
@@ -86,12 +87,13 @@ def loss_check(x,lab,params,g,isvalid=0,dv=0):
 #@jit(nopython=True)
 def im2col(im,k=3):
 #	assert(im.ndim==4 and im.shape[-1]==1)
+#	im2=np.pad(im,((0,0),(0,0),(0,int(np.ceil(im.shape[-2]%2))),(0,int(np.ceil(im.shape[-1]%2)))))
 	p=int(k/2)
 	(ba,c,h,w)=im.shape
 	imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
 	(ba,cp,hp,wp)=imp.shape
 	strd=(cp*hp*wp,hp*wp,wp,1,wp,1)
-	strd=(i*im.itemsize for i in strd)
+	strd=(i*imp.itemsize for i in strd)
 	col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,h,w,k,k),strides=strd)
 #	col=col.reshape(ba,h,w,k*k)
 	return col
@@ -138,7 +140,10 @@ def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0
 	(params_init,g,g_d,l2_grad)=({},[],[],{})
 	for i in range(lays):
 		if i==lays-1:
-			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/2**i),int(imw/2**i))
+			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],4,4)
+#			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(np.ceil(28/2**3)),int(np.ceil(28/2**3)))
+#			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],np.ceil(imh/2**i),np.ceil(imw/2**i))
+#			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/2**i),int(imw/2**i))
 #			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],imh,imw)
 		else:
 			params_init['k'+str(i)]=np.random.randn(ch[i+1],ch[i],k,k)
@@ -157,15 +162,33 @@ def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0
 	return (params,params_init,g,g_d)
 (params,params_init,g,g_d)=init_params()
 
-def maxpooling(im,k=2):
-	(ba,c,h,w)=im.shape
-	(hp,wp)=(int(h/k),int(w/k))
+def maxpooling(z,k=2):
+#	(ba,c,h,w)=z.shape
+#	if h%2!=0 and w%2!=0:
+#	if z.shape[-1]%2!=0 and z.shape[-2]%2!=0:
+#		zp=np.pad(z,((0,0),(0,0),(0,1),(0,1)))
+#	else:
+#		zp=z
+#	zp=np.pad(z,((0,0),(0,0),(0,np.ceil(z.shape[-2]%2)),(0,np.ceil(z.shape[-1]%2))))
+	print('maxpooling: z.shape=',z.shape)
+#	zp=np.pad(z,((0,0),(0,0),(0,int(np.ceil(z.shape[-2]%2))),(0,int(np.ceil(z.shape[-1]%2)))))
+#	print('maxpooling: zp.shape=',zp.shape)
+	(ba,c,h,w)=z.shape
+	(hm,wm)=(int(h/k),int(w/k))
 	strd=(c*h*w,h*w,w*k,k,w,1)
-	strd=(i*im.itemsize for i in strd)
-	col=np.lib.stride_tricks.as_strided(im,shape=(ba,c,hp,wp,k,k),strides=strd)
-	maxcol=np.max(col,(-2,-1))
-	cold=np.trunc(col/col.max((-2,-1),keepdims=1))
-	return maxcol,cold
+	strd=(i*z.itemsize for i in strd)
+	mkk=np.lib.stride_tricks.as_strided(z,shape=(ba,c,hm,wm,k,k),strides=strd)
+	mkkp=np.pad(mkk,((0,0),(0,0),(0,int(np.ceil(mkk.shape[-4]%2))),(0,int(np.ceil(mkk.shape[-3]%2))),(0,0),(0,0)))
+	m=np.max(mkkp,(-2,-1))
+	zdm=np.trunc(mkkp/mkkp.max((-2,-1),keepdims=1))
+	return m,zdm
+def maxpooling_d(d_m,zdm):
+	(ba,c,hp,wp,khp,kwp)=zdm.shape
+	d_z_mkk=np.expand_dims(d_m,(-2,-1))*zdm
+	strd=(c*hp*khp*wp*kwp,hp*khp*wp*kwp,wp*kwp,1)
+	strd=(i*d_m.itemsize for i in strd)
+	d_z=np.lib.stride_tricks.as_strided(d_z_mkk,shape=(ba,c,hp*khp,wp*kwp),strides=strd)
+	return d_z
 ## ==========
 def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
 	ba=X.shape[0]
@@ -211,6 +234,9 @@ def fp(X,params,g,isop=0,e=1e-8):
 	OP['A-1']=X
 	for i in range(l) :
 		Ai_1=OP['A'+str(i-1)]
+		print('fp: A%s.shape='%(i-1),Ai_1.shape)
+		Ai_1=np.pad(Ai_1,((0,0),(0,0),(0,int(np.ceil(Ai_1.shape[-2]%2))),(0,int(np.ceil(Ai_1.shape[-1]%2)))))
+		print('fp: A%s.shape='%(i-1),Ai_1.shape)
 		if i==l-1:
 			wi=params['w'+str(i)]
 			Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
@@ -218,13 +244,17 @@ def fp(X,params,g,isop=0,e=1e-8):
 		else:
 			ki=params['k'+str(i)]
 			Ci_1=im2col(Ai_1,ki.shape[-1])
+			print('fp: C%s.shape='%(i-1),Ci_1.shape)
 			OP['C'+str(i-1)]=Ci_1
 #			print('fp: col%s.shape='%i,coli.shape)
 #			print('coli=\n',coli)
 #			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
 #			print('fp k%s.shape='%i,ki.shape)
 			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-			Mi,Zdi=maxpooling(Zi)
+			print('fp: Z%s.shape='%i,Zi.shape)
+			Mi,ZdMi=maxpooling(Zi)
+			print('fp: M%s.shape='%i,Mi.shape)
+			print('fp: ZdM%s.shape='%i,ZdMi.shape)
 			ui=Mi.mean((-2,-1),keepdims=1)
 			vi=Mi.var((-2,-1),keepdims=1)
 #		print('fp: Z%s.shape='%i,Zi.shape)
@@ -241,7 +271,9 @@ def fp(X,params,g,isop=0,e=1e-8):
 #			print('fp: img.shape=',img.shape)
 #			plt.imshow(img,cmap='gray')
 #			plt.show()
+		print('fp: Y%s.shape='%i,Yi.shape)
 		Ai=g[i](Yi)
+		print('fp: A%s.shape='%i,Ai.shape)
 #		print('fp: A%s=\n'%(i-1),Ai_1.squeeze())
 #		print('fp: C%s=\n'%(i-1),Ci_1.squeeze())
 #		print('fp: k%s=\n'%i,ki.squeeze())
@@ -258,7 +290,7 @@ def fp(X,params,g,isop=0,e=1e-8):
 #			print('fp: Z%s.shape='%i,Zi.shape)
 #			print('fp: Y%s.shape='%i,Yi.shape)
 		OP['Z'+str(i)]=Zi
-		OP['Zd'+str(i)]=Zdi
+		OP['ZdM'+str(i)]=ZdMi
 		OP['M'+str(i)]=Mi
 		OP['X'+str(i)]=Xi
 		OP['Y'+str(i)]=Yi
@@ -316,8 +348,9 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			vi=np.expand_dims(vi,(-2,-1))
 			dXi_Mi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
 			d_Mi=np.einsum('bcijkl,bckl->bcij',dXi_Mi,d_Xi)
-			Zdi=OP['Zd'+str(i)]
-			d_Zi=Zdi*np.expand_dims(d_Mi,(-2,-1))
+			ZdMi=OP['ZdM'+str(i)]
+			d_Zi=maxpooling_d(d_Mi,ZdMi)
+#			d_Zi=Zdi*np.expand_dims(d_Mi,(-2,-1))
 #			d_['Z'+str(i)]=d_Zi
 #			ki_fl=ki
 #			print('bp: ki=\n',ki.squeeze())
@@ -336,12 +369,16 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
 			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
 #			d_['A'+str(i-1)]=d_Ai_1
+			print('bp: C%s.shape='%(i-1),Ci_1.shape)
+			print('bp: d_Z%s.shape='%i,d_Zi.shape)
 			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
 #			print('bp: k%s.shape='%i,ki.shape)
 #			print('bp: k%s_fl.shape='%i,ki_fl.shape)
 			grad['d_k'+str(i)]=d_ki.mean(0)
 		if i>=1:
 			Yi_1=OP['Y'+str(i-1)]
+			print('bp: Y%s.shape='%(i-1),Yi_1.shape)
+			print('bp: d_A%s.shape='%(i-1),d_Ai_1.shape)
 			d_Yi_1=g_d[i-1](Yi_1)*d_Ai_1
 			d_['Y'+str(i-1)]=d_Yi_1
 #		grad['d_gama'+str(i)]=d_gamai.mean(0,keepdims=1)
