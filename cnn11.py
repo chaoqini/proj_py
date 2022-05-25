@@ -15,12 +15,11 @@ import copy
 
 #(imh,imw,lays,convk)=(28,28,3,3)
 #(imba,imh,imw,lays,convk)=(3,28,28,3,3)
-#(imba,imch,imh,imw,lays,convk)=(2,1,5,6,4,3)
-#(imba,imch,imh,imw,lays,convk)=(1,1,5,6,4,3)
-#(imba,imch,imh,imw,lays,convk)=(3,1,5,6,4,3)
-#(imba,imch,imh,imw,lays,convk)=(2,1,28,28,4,3)
-#(imba,imch,imh,imw,lays,convk)=(3,1,28,28,3,3)
-(imba,imch,imh,imw,lays,convk)=(3,1,28,28,4,3)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,2)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,1)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,8,8,4,3,1)
+(imba,imch,imh,imw,lays,convk,km)=(5,1,8,8,3,3,1)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,4,3,1)
 
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -88,14 +87,13 @@ def loss_check(x,lab,params,g,isvalid=0,dv=0):
 def im2col(im,k=3):
 #	assert(im.ndim==4 and im.shape[-1]==1)
 #	im2=np.pad(im,((0,0),(0,0),(0,int(np.ceil(im.shape[-2]%2))),(0,int(np.ceil(im.shape[-1]%2)))))
-	p=int(k/2)
+#	p=int(k/2)
 	(ba,c,h,w)=im.shape
-	imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
-	(ba,cp,hp,wp)=imp.shape
-	strd=(cp*hp*wp,hp*wp,wp,1,wp,1)
-	strd=(i*imp.itemsize for i in strd)
-	col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,h,w,k,k),strides=strd)
-#	col=col.reshape(ba,h,w,k*k)
+#	imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
+#	(ba,cp,hp,wp)=imp.shape
+	strd=(c*h*w,h*w,w,1,w,1)
+	strd=(i*im.itemsize for i in strd)
+	col=np.lib.stride_tricks.as_strided(im,shape=(ba,c,h,w,k,k),strides=strd)
 	return col
 def conv(A,kf):
 #	assert(A.ndim==4 and A.shape[-1]==1 and kf.ndim==2)
@@ -104,29 +102,6 @@ def conv(A,kf):
 	Z=np.einsum('bchwij,mcij->bmhw',C,kf)
 	return Z
 
-def im2col2(im,k=3):
-#	assert(im.ndim==4 and im.shape[-1]==1)
-	p=int(k/2)
-	imp=np.pad(im,((0,0),(p,p),(p,p)))
-	(ba,h,w)=imp.shape
-	(col_r,col_c)=(h-k+1,w-k+1)
-	col=np.zeros((ba,col_r,col_c,k*k))
-#	jit(nopython=1)
-	for r in range(col_r):
-		for c in range(col_c):
-			col[:,r,c]=imp[:,r:r+k,c:c+k].reshape(imp.shape[0],-1)
-	return col
-#def col2im(col,k=3,p=-1):
-def col2im(col,p=-1):
-	assert(col.ndim==4)
-	(ba,h,w,kk)=col.shape
-	k=int(kk**0.5)
-	if p==-1: p=int(k/2)
-	im=np.zeros((ba,h,w,1))
-	for r in range(h):
-		for c in range(w):
-			im[:,r,c,0]=col[:,r,c,int(k*(p+0.5))]
-	return im
 
 #def init_params(lays=lays,k=convk,nh=imh,nw=imw,nk=2,ny=10,func=0,seed=0):
 def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0):
@@ -140,7 +115,10 @@ def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0
 	(params_init,g,g_d,l2_grad)=({},[],[],{})
 	for i in range(lays):
 		if i==lays-1:
-			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],4,4)
+			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/km**i),int(imw/km**i))
+#			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/2**i),int(imw/2**i))
+#			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(28/2**i),int(28/2**i))
+#			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(np.ceil(28/2**i)),int(np.ceil(28/2**i)))
 #			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(np.ceil(28/2**3)),int(np.ceil(28/2**3)))
 #			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],np.ceil(imh/2**i),np.ceil(imw/2**i))
 #			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/2**i),int(imw/2**i))
@@ -170,7 +148,7 @@ def maxpooling(z,k=2):
 #	else:
 #		zp=z
 #	zp=np.pad(z,((0,0),(0,0),(0,np.ceil(z.shape[-2]%2)),(0,np.ceil(z.shape[-1]%2))))
-	print('maxpooling: z.shape=',z.shape)
+#	print('maxpooling: z.shape=',z.shape)
 #	zp=np.pad(z,((0,0),(0,0),(0,int(np.ceil(z.shape[-2]%2))),(0,int(np.ceil(z.shape[-1]%2)))))
 #	print('maxpooling: zp.shape=',zp.shape)
 	(ba,c,h,w)=z.shape
@@ -178,9 +156,9 @@ def maxpooling(z,k=2):
 	strd=(c*h*w,h*w,w*k,k,w,1)
 	strd=(i*z.itemsize for i in strd)
 	mkk=np.lib.stride_tricks.as_strided(z,shape=(ba,c,hm,wm,k,k),strides=strd)
-	mkkp=np.pad(mkk,((0,0),(0,0),(0,int(np.ceil(mkk.shape[-4]%2))),(0,int(np.ceil(mkk.shape[-3]%2))),(0,0),(0,0)))
-	m=np.max(mkkp,(-2,-1))
-	zdm=np.trunc(mkkp/mkkp.max((-2,-1),keepdims=1))
+	m=np.max(mkk,(-2,-1))
+	zdm=(mkk+1-mkk.max((-2,-1),keepdims=1))
+	zdm[zdm<1]=1
 	return m,zdm
 def maxpooling_d(d_m,zdm):
 	(ba,c,hp,wp,khp,kwp)=zdm.shape
@@ -234,27 +212,29 @@ def fp(X,params,g,isop=0,e=1e-8):
 	OP['A-1']=X
 	for i in range(l) :
 		Ai_1=OP['A'+str(i-1)]
-		print('fp: A%s.shape='%(i-1),Ai_1.shape)
-		Ai_1=np.pad(Ai_1,((0,0),(0,0),(0,int(np.ceil(Ai_1.shape[-2]%2))),(0,int(np.ceil(Ai_1.shape[-1]%2)))))
-		print('fp: A%s.shape='%(i-1),Ai_1.shape)
+#		print('fp: A%s.shape='%(i-1),Ai_1.shape)
+#		Ai_1=np.pad(Ai_1,((0,0),(0,0),(0,int(np.ceil(Ai_1.shape[-2]%2))),(0,int(np.ceil(Ai_1.shape[-1]%2)))))
+#		print('fp: A%s.shape='%(i-1),Ai_1.shape)
 		if i==l-1:
 			wi=params['w'+str(i)]
+#			print('fp: w%s.shape='%i,wi.shape)
 			Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
 			Yi=np.expand_dims(Zi,(1,-1))
 		else:
 			ki=params['k'+str(i)]
 			Ci_1=im2col(Ai_1,ki.shape[-1])
-			print('fp: C%s.shape='%(i-1),Ci_1.shape)
+#			print('fp: C%s.shape='%(i-1),Ci_1.shape)
 			OP['C'+str(i-1)]=Ci_1
 #			print('fp: col%s.shape='%i,coli.shape)
 #			print('coli=\n',coli)
 #			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
 #			print('fp k%s.shape='%i,ki.shape)
 			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-			print('fp: Z%s.shape='%i,Zi.shape)
-			Mi,ZdMi=maxpooling(Zi)
-			print('fp: M%s.shape='%i,Mi.shape)
-			print('fp: ZdM%s.shape='%i,ZdMi.shape)
+#			print('fp: Z%s.shape='%i,Zi.shape)
+#			Mi,ZdMi=maxpooling(Zi)
+			Mi,ZdMi=maxpooling(Zi,km)
+#			print('fp: M%s.shape='%i,Mi.shape)
+#			print('fp: ZdM%s.shape='%i,ZdMi.shape)
 			ui=Mi.mean((-2,-1),keepdims=1)
 			vi=Mi.var((-2,-1),keepdims=1)
 #		print('fp: Z%s.shape='%i,Zi.shape)
@@ -271,9 +251,10 @@ def fp(X,params,g,isop=0,e=1e-8):
 #			print('fp: img.shape=',img.shape)
 #			plt.imshow(img,cmap='gray')
 #			plt.show()
-		print('fp: Y%s.shape='%i,Yi.shape)
+#		print('fp: Y%s.shape='%i,Yi.shape)
+#		print('fp: g[%s].name='%i,g[i].__name__)
 		Ai=g[i](Yi)
-		print('fp: A%s.shape='%i,Ai.shape)
+#		print('fp: A%s.shape='%i,Ai.shape)
 #		print('fp: A%s=\n'%(i-1),Ai_1.squeeze())
 #		print('fp: C%s=\n'%(i-1),Ci_1.squeeze())
 #		print('fp: k%s=\n'%i,ki.squeeze())
@@ -369,6 +350,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
 			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
 #			d_['A'+str(i-1)]=d_Ai_1
+			d_Zi=np.pad(d_Zi,((0,0),(0,0),(0,Ci_1.shape[2]-d_Zi.shape[2]),(0,Ci_1.shape[3]-d_Zi.shape[3])))
 			print('bp: C%s.shape='%(i-1),Ci_1.shape)
 			print('bp: d_Z%s.shape='%i,d_Zi.shape)
 			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
@@ -377,8 +359,10 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			grad['d_k'+str(i)]=d_ki.mean(0)
 		if i>=1:
 			Yi_1=OP['Y'+str(i-1)]
-			print('bp: Y%s.shape='%(i-1),Yi_1.shape)
+			print('bp: d_A%s.shape bf='%(i-1),d_Ai_1.shape)
+			d_Ai_1=np.pad(d_Ai_1,((0,0),(0,0),(0,Yi_1.shape[2]-d_Ai_1.shape[2]),(0,Yi_1.shape[3]-d_Ai_1.shape[3])))
 			print('bp: d_A%s.shape='%(i-1),d_Ai_1.shape)
+			print('bp: Y%s.shape='%(i-1),Yi_1.shape)
 			d_Yi_1=g_d[i-1](Yi_1)*d_Ai_1
 			d_['Y'+str(i-1)]=d_Yi_1
 #		grad['d_gama'+str(i)]=d_gamai.mean(0,keepdims=1)
@@ -699,9 +683,10 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 #ch=2
 np.random.seed(2)
 lab=mnist.train_lab[0:imba]
-x=mnist.train_img[0:imba]
+#x=mnist.train_img[0:imba]
 #x=np.expand_dims(x,1)
-#x=np.random.randn(imba,1,imh,imw)*1e-2
+#x=np.random.randn(imba,1,imh,imw)
+x=np.random.randn(imba,imch,imh,imw)*1e-2
 #x=np.random.randn(2,10,1,1)
 #x=np.arange(10).reshape(1,10,1,1)+1
 #print('x.shape=',x.shape)
@@ -714,8 +699,9 @@ x=mnist.train_img[0:imba]
 #print('y.shape=',y.shape)
 #print('y=\n',y.squeeze())
 #cost=g[-1](x,lab,params,g)
-grad=bp(x,lab,params,g,g_d)
-#(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
+#grad=bp(x,lab,params,g,g_d)
+(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
+print('grad.keys()=',grad.keys())
 #
 
 #def loss_check(x,lab,params,g,isvalid=0):
@@ -734,7 +720,6 @@ grad=bp(x,lab,params,g,g_d)
 ##print('lv1=',lv1)
 ##print('lv2=',lv2)
 #print('lkk=',lkk)
-print('grad.keys()=',grad.keys())
 
 #col=im2col(x)
 #xp=np.pad(x,((0,0),(0,0),(1,1),(1,1)))

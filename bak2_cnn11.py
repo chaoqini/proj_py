@@ -16,7 +16,10 @@ import copy
 #(imh,imw,lays,convk)=(28,28,3,3)
 #(imba,imh,imw,lays,convk)=(3,28,28,3,3)
 #(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,2)
-(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,1)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,1)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,8,8,4,3,1)
+(imba,imch,imh,imw,lays,convk,km)=(5,1,8,8,3,3,1)
+#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,4,3,1)
 
 ## ==========
 def tanh(x): return np.tanh(x)

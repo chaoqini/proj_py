@@ -64,7 +64,7 @@ def cross_entropy(x,lab,params,g,isvalid=0):
 	if isvalid==0:
 		return cost
 	else:
-		correct=(np.argmax(Y,-2)==np.argmax(YL,-2))
+		correct=(np.argmax(y,-2)==np.argmax(yl,-2))
 		valid_per=correct.sum()/len(correct)
 		return (cost,valid_per,correct)
 def loss_check(x,lab,params,g,isvalid=0,dv=0):
@@ -149,24 +149,21 @@ def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0
 		g_d.append(func_d)
 	g[-1]=softmax;g.append(cross_entropy)
 	params=copy.deepcopy(params_init)
-	print('params: ch=',ch)
-	print('params: lays=',lays)
-	for k,v in params.items():
-		print('params: %s.shape='%k,v.shape)
+#	print('params: ch=',ch)
+#	print('params: lays=',lays)
+#	for k,v in params.items():
+#		print('params: %s.shape='%k,v.shape)
 	return (params,params_init,g,g_d)
 (params,params_init,g,g_d)=init_params()
 
-def maxpooling(X,k=2):
-	if X.ndim==2: X=X.reshape(tuple([1])+X.shape)
-	assert(X.ndim==3)
-	(h,w)=X.shape[1:3]
-	(h,w)=(int(h/k),int(w/k))
-	cols=np.zeros((X.shape[0],h,k*k,w))
-	for r in range(h):
-		for c in range(w):
-			cols[:,r,:,c]=X[:,k*r:k*r+k,k*c:k*c+k].reshape(X.shape[0],-1)
-	maxcols=np.max(cols,axis=2)
-	return maxcols
+def maxpooling(im,k=2):
+	(ba,c,h,w)=im.shape
+	(hp,wp)=(int(h/k),int(w/k))
+	strd=(c*h*w,h*w,w*k,k,w,1)
+	strd=(i*im.itemsize for i in strd)
+	col=np.lib.stride_tricks.as_strided(im,shape=(ba,c,hp,wp,k,k),strides=strd)
+	maxcol=np.max(col,(-2,-1))
+	return maxcol
 ## ==========
 def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
 	ba=X.shape[0]
@@ -651,13 +648,13 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 #(imba,imh,imw,lays,convk)=(2,4,5,2,3)
 #ch=2
 #np.random.seed(2)
-lab=mnist.train_lab[0:imba]
-x=mnist.train_img[0:imba]
+#lab=mnist.train_lab[0:imba]
+#x=mnist.train_img[0:imba]
 #x=np.expand_dims(x,1)
 #x=np.random.randn(imba,1,imh,imw)*1e-2
 #x=np.random.randn(2,10,1,1)
 #x=np.arange(10).reshape(1,10,1,1)+1
-print('x.shape=',x.shape)
+#print('x.shape=',x.shape)
 #x=np.arange(imba*imch*imh*imw).reshape(imba,imch,imh,imw)+1
 #def grad_check(x,lab,params,g,g_d,dv=1e-5):
 #def fp(X,params,g,isop=0,e=1e-8):
@@ -666,7 +663,7 @@ print('x.shape=',x.shape)
 #y=fp(x,params,g)
 #cost=g[-1](x,lab,params,g)
 #grad=bp(x,lab,params,g,g_d)
-(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
+#(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
 #
 
 #def loss_check(x,lab,params,g,isvalid=0):
