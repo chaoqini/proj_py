@@ -18,7 +18,8 @@ import copy
 #(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,2)
 #(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,1)
 #(imba,imch,imh,imw,lays,convk,km)=(8,1,8,8,4,3,1)
-(imba,imch,imh,imw,lays,convk,km)=(5,1,8,8,3,3,1)
+#(imba,imch,imh,imw,lays,convk,km)=(3,1,8,8,3,3,1)
+(imba,imch,imh,imw,lays,convk,km)=(1,1,16,16,3,3,1)
 #(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,4,3,1)
 
 ## ==========
@@ -67,21 +68,20 @@ def cross_entropy(x,lab,params,g,isvalid=0):
 		correct=(np.argmax(y,-2)==np.argmax(yl,-2))
 		valid_per=correct.sum()/len(correct)
 		return (cost,valid_per,correct)
-def loss_check(x,lab,params,g,isvalid=0,dv=0):
-	y=fpdv(x,params,g,dv=dv)
-	ba=y.shape[0]
-	yl=np.zeros(y.shape)
+def loss_check(x,lab,params,g,dv=0):
+	print('loss_check: dv=',dv)
+	y1=fpdv(x,params,g,dv=-dv)
+	y2=fpdv(x,params,g,dv=dv)
+	ba=y1.shape[0]
+	yl=np.zeros(y1.shape)
 	yl[np.arange(ba),0,lab.reshape(ba),0]=1
-#	print('loss_check: y=\n',y.squeeze())
-#	print('loss_check: yl=\n',yl.squeeze())
-	loss=-np.sum(yl*np.log(y))
-	cost=loss/ba
-	if isvalid==0:
-		return cost
-	else:
-		correct=(np.argmax(Y,-2)==np.argmax(YL,-2))
-		valid_per=correct.sum()/len(correct)
-		return (cost,valid_per,correct)
+	print('loss_check: yl=\n',yl.squeeze())
+	print('loss_check: y1=\n',y1.squeeze())
+	print('loss_check: y2=\n',y2.squeeze())
+	loss1=-np.sum(yl*np.log(y1))
+	loss2=-np.sum(yl*np.log(y2))
+	slp=(loss2-loss1)/(dv*2)
+	return slp
 ## ==========
 #@jit(nopython=True)
 def im2col(im,k=3):
@@ -168,7 +168,7 @@ def maxpooling_d(d_m,zdm):
 	d_z=np.lib.stride_tricks.as_strided(d_z_mkk,shape=(ba,c,hp*khp,wp*kwp),strides=strd)
 	return d_z
 ## ==========
-def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
+def fpdv2(X,params,g,isop=0,e=1e-8,dv=0):
 	ba=X.shape[0]
 	(l,OP)=(int(len(params)/3)+1,{})
 	OP['A-1']=X
@@ -199,6 +199,91 @@ def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
 		OP['u'+str(i)]=ui
 		OP['v'+str(i)]=vi
 	Y=OP['A'+str(l-1)]
+	if isop==0: 
+		return Y
+	else: 
+		return (Y,OP)
+
+def fpdv(X,params,g,isop=0,e=1e-8,dv=0):
+	ba=X.shape[0]
+	(l,OP)=(int(len(params)/3)+1,{})
+#	print('fp: X.shape=',X.shape)
+	OP['A-1']=X
+	for i in range(l) :
+		Ai_1=OP['A'+str(i-1)]
+#		print('fp: A%s.shape='%(i-1),Ai_1.shape)
+#		Ai_1=np.pad(Ai_1,((0,0),(0,0),(0,int(np.ceil(Ai_1.shape[-2]%2))),(0,int(np.ceil(Ai_1.shape[-1]%2)))))
+#		print('fp: A%s.shape='%(i-1),Ai_1.shape)
+		if i==l-1:
+			wi=params['w'+str(i)]
+#			print('fp: w%s.shape='%i,wi.shape)
+			Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
+			Yi=np.expand_dims(Zi,(1,-1))
+		else:
+			ki=params['k'+str(i)]
+			Ci_1=im2col(Ai_1,ki.shape[-1])
+#			print('fp: C%s.shape='%(i-1),Ci_1.shape)
+			OP['C'+str(i-1)]=Ci_1
+#			print('fp: col%s.shape='%i,coli.shape)
+#			print('coli=\n',coli)
+#			Zi=np.einsum('mhwijn,ijn->mhwn',coli,ki)
+#			print('fp k%s.shape='%i,ki.shape)
+			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
+#			OP['Z'+str(i)]=Zi
+			print('fp Z%s.shape='%i,Zi.shape)
+#			if i==1: Zi[0,0,0,2]+=dv
+#			print('fp: Z%s.shape='%i,Zi.shape)
+#			Mi,ZdMi=maxpooling(Zi)
+			Mi,ZdMi=maxpooling(Zi,km)
+#			print('fp: M%s.shape='%i,Mi.shape)
+#			print('fp: ZdM%s.shape='%i,ZdMi.shape)
+			ui=Mi.mean((-2,-1),keepdims=1)
+			vi=Mi.var((-2,-1),keepdims=1)
+#		print('fp: Z%s.shape='%i,Zi.shape)
+#		print('fp: u%s.shape='%i,ui.shape)
+#		print('fp: v%s.shape='%i,vi.shape)
+#		print('fp: gama%s.shape='%i,gamai.shape)
+#		print('fp: beta%s.shape='%i,betai.shape)
+			Xi=(Mi-ui)/(vi+e)**0.5
+			gamai=params['gama'+str(i)]
+			betai=params['beta'+str(i)]
+			Yi=gamai*Xi+betai
+			print('fpdv: dv=',dv)
+			if i==1: Yi[0,0,0,1]+=dv
+#			print('fp: Y%s.shape='%i,Yi.shape)
+#			img=Yi[0,0]
+#			print('fp: img.shape=',img.shape)
+#			plt.imshow(img,cmap='gray')
+#			plt.show()
+#		print('fp: Y%s.shape='%i,Yi.shape)
+#		print('fp: g[%s].name='%i,g[i].__name__)
+		Ai=g[i](Yi)
+#		print('fp: A%s.shape='%i,Ai.shape)
+#		print('fp: A%s=\n'%(i-1),Ai_1.squeeze())
+#		print('fp: C%s=\n'%(i-1),Ci_1.squeeze())
+#		print('fp: k%s=\n'%i,ki.squeeze())
+#		print('fp Z%s=\n'%i,Zi.squeeze())
+#		print('fp u%s=\n'%i,ui.squeeze())
+#		print('fp v%s=\n'%i,vi.squeeze())
+#		print('fp X%s=\n'%i,Xi.squeeze())
+#		print('fp Y%s=\n'%i,Yi.squeeze())
+#		print('fp: A%s='%i,Ai.squeeze())
+#		if i>=0:
+#			print('fp: A%s.shape='%(i-1),Ai_1.shape)
+#			print('fp: C%s.shape='%(i-1),Ci_1.shape)
+#			print('fp: k%s.shape='%i,ki.shape)
+#			print('fp: Z%s.shape='%i,Zi.shape)
+#			print('fp: Y%s.shape='%i,Yi.shape)
+		OP['Z'+str(i)]=Zi
+		OP['ZdM'+str(i)]=ZdMi
+		OP['M'+str(i)]=Mi
+		OP['X'+str(i)]=Xi
+		OP['Y'+str(i)]=Yi
+		OP['A'+str(i)]=Ai
+		OP['u'+str(i)]=ui
+		OP['v'+str(i)]=vi
+	Y=OP['A'+str(l-1)]
+#	print('fp: Y.shape=',Y.shape)
 	if isop==0: 
 		return Y
 	else: 
@@ -332,7 +417,6 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			ZdMi=OP['ZdM'+str(i)]
 			d_Zi=maxpooling_d(d_Mi,ZdMi)
 #			d_Zi=Zdi*np.expand_dims(d_Mi,(-2,-1))
-#			d_['Z'+str(i)]=d_Zi
 #			ki_fl=ki
 #			print('bp: ki=\n',ki.squeeze())
 			ki_fl=np.flip(ki,(-2,-1))
@@ -357,6 +441,12 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 #			print('bp: k%s.shape='%i,ki.shape)
 #			print('bp: k%s_fl.shape='%i,ki_fl.shape)
 			grad['d_k'+str(i)]=d_ki.mean(0)
+			if isop!=0:
+				d_['X'+str(i)]=d_Xi
+				d_['M'+str(i)]=d_Mi
+				d_['Z'+str(i)]=d_Zi
+				d_['Z'+str(i)+'_2col']=d_Zi_2col
+				d_['A'+str(i-1)]=d_Ai_1
 		if i>=1:
 			Yi_1=OP['Y'+str(i-1)]
 			print('bp: d_A%s.shape bf='%(i-1),d_Ai_1.shape)
@@ -700,26 +790,30 @@ x=np.random.randn(imba,imch,imh,imw)*1e-2
 #print('y=\n',y.squeeze())
 #cost=g[-1](x,lab,params,g)
 #grad=bp(x,lab,params,g,g_d)
-(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
-print('grad.keys()=',grad.keys())
+#(grad,slp)=grad_check(x,lab,params,g,g_d,dv=1e-5)
+#print('grad.keys()=',grad.keys())
 #
 
 #def loss_check(x,lab,params,g,isvalid=0):
 #def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 #def fpdv(X,params,g,isop=0,e=1e-8,dv=1e-5):
-#(grad,d_)=bp(x,lab,params,g,g_d,isop=1)
-#ldv=1e-5
 #lv1=loss_check(x,lab,params,g,dv=-ldv)
 #lv2=loss_check(x,lab,params,g,dv=ldv)
 #lkk=(lv2-lv1)/(ldv*2)
-#print('d_.keys()=',d_.keys())
-##print('d_[Z2].shape=',d_['Z2'].shape)
-##print('d_[Z2]=\n',d_['Z2'].squeeze())
+#print('lv1=',lv1)
+#print('lv2=',lv2)
+#print('lkk=',lkk)
+
+check_slp=loss_check(x,lab,params,g,dv=1e-5)
+print('check_slp=',check_slp)
+(grad,d_)=bp(x,lab,params,g,g_d,isop=1)
+print('d_.keys()=',d_.keys())
+print('d_[Y1].shape=',d_['Y1'].shape)
+print('d_[Y1]=\n',d_['Y1'].squeeze())
+#print('d_[Z1].shape=',d_['Z1'].shape)
+#print('d_[Z1]=\n',d_['Z1'].squeeze())
 #print('d_[A1].shape=',d_['A1'].shape)
 #print('d_[A1]=\n',d_['A1'].squeeze())
-##print('lv1=',lv1)
-##print('lv2=',lv2)
-#print('lkk=',lkk)
 
 #col=im2col(x)
 #xp=np.pad(x,((0,0),(0,0),(1,1),(1,1)))
