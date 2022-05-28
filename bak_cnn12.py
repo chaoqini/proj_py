@@ -90,24 +90,29 @@ def loss_check(x,lab,params,g,dv=0):
 	return slp
 ## ==========
 #@jit(nopython=True)
-def im2col(im,k=3):
+def im2col(im,k=3,s=1,pad=1):
+    p=int(k/2)
+    (ba,c,h,w)=im.shape
+    if pad==1: imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
+    else: imp=im
+    (ba,c,hp,wp)=imp.shape
+    strd=(c*hp*wp,hp*wp,wp*s,s,wp,1)
+    strd=(i*imp.itemsize for i in strd)
+    col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,int((hp-k)/s)+1,int((wp-k)/s)+1,k,k),strides=strd)
+    return col
+
+def im2col(im,k=3,s=1,p=1):
 #	assert(im.ndim==4 and im.shape[-1]==1)
 #	im2=np.pad(im,((0,0),(0,0),(0,int(np.ceil(im.shape[-2]%2))),(0,int(np.ceil(im.shape[-1]%2)))))
-#	p=int(k/2)
+	p=int(k/2)
 	(ba,c,h,w)=im.shape
-#	imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
-#	(ba,cp,hp,wp)=imp.shape
-	strd=(c*h*w,h*w,w,1,w,1)
-	strd=(i*im.itemsize for i in strd)
-	col=np.lib.stride_tricks.as_strided(im,shape=(ba,c,h,w,k,k),strides=strd)
+	if p==1: imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
+	else: imp=im
+	(ba,cp,hp,wp)=imp.shape
+	strd=(c*hp*wp,hp*wp,wp,s,wp,1)
+	strd=(i*imp.itemsize for i in strd)
+	col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,h,w,k,k),strides=strd)
 	return col
-def conv(A,kf):
-#	assert(A.ndim==4 and A.shape[-1]==1 and kf.ndim==2)
-	C=im2col(A,kf.shape[-1])
-#	Z=C@kf.reshape(-1,1)
-	Z=np.einsum('bchwij,mcij->bmhw',C,kf)
-	return Z
-
 
 #def init_params(lays=lays,k=convk,nh=imh,nw=imw,nk=2,ny=10,func=0,seed=0):
 def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0):
