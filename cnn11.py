@@ -5,7 +5,7 @@ import numpy as np
 #import numba as np
 #import numexpr as np
 #from numba import jit
-from timeit import timeit
+#from timeit import timeit
 import mnist
 from matplotlib import pyplot as plt 
 import pickle
@@ -13,17 +13,14 @@ import sys
 import time
 import copy
 
-#(imh,imw,lays,convk)=(28,28,3,3)
-#(imba,imh,imw,lays,convk)=(3,28,28,3,3)
-#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,2)
-#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,3,3,1)
-#(imba,imch,imh,imw,lays,convk,km)=(8,1,8,8,4,3,1)
-#(imba,imch,imh,imw,lays,convk,km)=(3,1,8,8,3,3,1)
-#(imba,imch,imh,imw,lays,convk,km)=(1,1,8,8,3,3,1)
-#(imba,imch,imh,imw,lays,convk,km)=(1,1,8,8,3,3,2)
-#(imba,imch,imh,imw,lays,convk,km)=(2,1,16,16,4,3,2)
-(imba,imch,imh,imw,lays,convk,km)=(1,1,16,16,4,3,2)
-#(imba,imch,imh,imw,lays,convk,km)=(8,1,16,16,4,3,1)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(4,1,1,28,28,3,2,4)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(4,1,1,28,28,3,2,4)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(5,1,1,28,28,3,2,4)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(6,4,4,28,28,3,2,4)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(4,2,1,15,15,3,2,4)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,1,28,28,3,2,4)
+#(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,2,28,28,3,2,4)
+(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,28,28,3,2,4)
 np.random.seed(0)
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -77,18 +74,18 @@ def im2col(im,k=3,s=1,pad=1):
 
 
 #def init_params(lays=lays,k=convk,nh=imh,nw=imw,nk=2,ny=10,func=0,seed=0):
-def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0):
-#	np.random.seed(seed)
-	if func==-1: (func,func_d)=(relu,relu_d)
-#	if ch==-1: ch=[1]+[imch]*(lays-1)+[10]
+def init_params(lays=lays,k=convk,imchin=imchin,dimch=dimch,imh=imh,imw=imw,ch=-1,func=None):
+	if func==None: (func,func_d)=(relu,relu_d)
 	if ch==-1:
 		ch=[]
-		for i in range(lays):ch.append(i+1)
+		for i in range(lays):ch.append(imchin+dimch*i)
 		ch.append(10)
 	(params_init,g,g_d,l2_grad)=({},[],[],{})
+	print('init_params: ch=',ch)
 	for i in range(lays):
 		if i==lays-1:
-			params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/km**i),int(imw/km**i))
+				nh=int(np.log2(imh/minhw));nw=int(np.log2(imw/minhw))
+				params_init['w'+str(i)]=np.random.randn(ch[i+1],ch[i],int(imh/km**nh),int(imw/km**nw))
 		else:
 			params_init['k'+str(i)]=np.random.randn(ch[i+1],ch[i],k,k)
 			params_init['gama'+str(i)]=np.ones((ch[i+1],1,1))
@@ -102,11 +99,11 @@ def init_params(lays=lays,k=convk,imch=imch,imh=imh,imw=imw,ch=-1,func=-1,seed=0
 	return (params,params_init,g,g_d)
 (params,params_init,g,g_d)=init_params()
 
-def maxpooling(z,k=2):
+def maxpooling(z,k=2,e=1e-12):
 	mkk=im2col(z,k=2,s=2,pad=0)
 	m=np.max(mkk,(-2,-1))
 	zdm=(mkk+1-mkk.max((-2,-1),keepdims=1))
-	zdm[zdm<1]=0
+	zdm[zdm<1-e]=0
 	return m,zdm
 def maxpooling_d(d_m,zdm):
 	(ba,c,hp,wp,khp,kwp)=zdm.shape
@@ -117,7 +114,7 @@ def maxpooling_d(d_m,zdm):
 	return d_z
 ## ==========
 def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
-	ba=x.shape[0]
+	ba=X.shape[0]
 	(l,OP)=(int(len(params)/3)+1,{})
 	OP['A-1']=X
 	for i in range(l) :
@@ -132,10 +129,12 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 			ki=params['k'+str(i)]
 			Ci_1=im2col(Ai_1,ki.shape[-1])
 			if pname=='C'+str(i-1): Ci_1=opin
-			OP['C'+str(i-1)]=Ci_1
 			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
 			if pname=='Z'+str(i) : Zi=opin
-			Mi,ZdMi=maxpooling(Zi,km)
+			if Zi.shape[-1]>=km*minhw and Zi.shape[-2]>=km*minhw: 
+				Mi,ZdMi=maxpooling(Zi,km)
+			else:
+				Mi=Zi
 			if pname=='M'+str(i) : Mi=opin
 			if pname=='ZdM'+str(i) : ZdMi=opin
 			ui=Mi.mean((-2,-1),keepdims=1)
@@ -148,14 +147,15 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 			if pname=='Y'+str(i): Yi=opin
 		Ai=g[i](Yi)
 		if pname=='A'+str(i): Ai=opin
+		OP['C'+str(i-1)]=Ci_1
 		OP['Z'+str(i)]=Zi
 		OP['ZdM'+str(i)]=ZdMi
 		OP['M'+str(i)]=Mi
+		OP['u'+str(i)]=ui
+		OP['v'+str(i)]=vi
 		OP['X'+str(i)]=Xi
 		OP['Y'+str(i)]=Yi
 		OP['A'+str(i)]=Ai
-		OP['u'+str(i)]=ui
-		OP['v'+str(i)]=vi
 	Y=OP['A'+str(l-1)]
 	if isop==0: 
 		return Y
@@ -177,6 +177,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			d_Ai_1=np.einsum('bpoq,ochw->bchw',d_Yi,wi)
 			d_wi=np.einsum('bchw,bpoq->bochw',Ai_1,d_Yi)
 			grad['d_w'+str(i)]=d_wi.mean(0)
+			d_['Y'+str(i)]=d_Yi
 		else:
 			ki=params['k'+str(i)]
 			gamai=params['gama'+str(i)]
@@ -199,7 +200,11 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			dXi_Mi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
 			d_Mi=np.einsum('bcijkl,bckl->bcij',dXi_Mi,d_Xi)
 			ZdMi=OP['ZdM'+str(i)]
-			d_Zi=maxpooling_d(d_Mi,ZdMi)
+			Zi=OP['Z'+str(i)]
+			if Zi.shape[-1]>=km*minhw and Zi.shape[-2]>=km*minhw: 
+				d_Zi=maxpooling_d(d_Mi,ZdMi)
+			else:
+				d_Zi=d_Mi
 			ki_fl=np.flip(ki,(-2,-1))
 			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
 			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
@@ -209,6 +214,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			if isop!=0:
 				d_['X'+str(i)]=d_Xi
 				d_['M'+str(i)]=d_Mi
+				d_['ZdM'+str(i)]=ZdMi
 				d_['Z'+str(i)]=d_Zi
 				d_['Z'+str(i)+'_2col']=d_Zi_2col
 				d_['A'+str(i-1)]=d_Ai_1
@@ -297,6 +303,9 @@ def grad_check(x,lab,params,g,g_d,dv=1e-5):
 		ratio_error[k]=l2_v1d2/(l2_v1+l2_v2)
 	for (k,v) in y1.items():
 		if v.size<200:
+			print('=== grad_check : ')
+			print('grad[%s].shape='%k,y1[k].shape)
+			print('slope[%s].shape='%k,y2[k].shape)
 			print('grad[%s]=\n'%k,y1[k].squeeze())
 			print('slope[%s]=\n'%k,y2[k].squeeze())
 	print('grad_check: abs_error=\n',abs_error)
@@ -475,7 +484,7 @@ def valid_train(params,g,batch=0,batches=0):
 def show(params,g,n=-1):
 	if n==-1: n=np.random.randint(mnist.test_num)
 	x=mnist.test_img[n]
-	lab=mnist.test_lab[n]
+	lab=mnist.test_lab[n].squeeze()
 #	x=np.expand_dims(x,0)
 #	lab=mnist.test_lab[n].squeeze()
 	x=np.expand_dims(x,0)
@@ -544,16 +553,32 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 
 #(imba,imh,imw,lays,convk)=(2,4,5,2,3)
 #ch=2
-nn=2
-lab=mnist.train_lab[nn:nn+imba]
+#nn=2
+#lab=mnist.train_lab[nn:nn+imba]
 #x=mnist.train_img[0:imba]
 #x=np.expand_dims(x,1)
 #x=np.random.randn(imba,1,imh,imw)
-x=np.random.randn(imba,imch,imh,imw)*100
-grad_check2(x,lab,params,g,g_d,pname='M2',dv=1e-5)
-grad_check2(x,lab,params,g,g_d,pname='Z2',dv=1e-5)
+#x=np.random.randn(imba,imchin,imh,imw)*100
+#i=2
+#grad_check(x,lab,params,g,g_d)
+#grad_check2(x,lab,params,g,g_d,pname='M'+str(i),dv=1e-5)
+#grad_check2(x,lab,params,g,g_d,pname='Z'+str(i),dv=1e-5)
+#grad_check2(x,lab,params,g,g_d,pname='ZdM'+str(i),dv=1e-5)
+#yfp,op=fp(x,params,g,isop=1)
+#ybp,d_=bp(x,lab,params,g,g_d,isop=1)
+#print('"d_[ZdM%s]=\n'%i,d_['ZdM'+str(i)].squeeze())
+#print('op[ZdM%s]=\n'%i,op['ZdM'+str(i)].squeeze())
+#print('op[Z%s]=\n'%i,op['Z'+str(i)].squeeze())
 
 
+#print('params.keys()=\n',params.keys())
+#for k,v in params.items(): print('%s.shape='%k,v.shape)
+#print('op.keys()=\n',op.keys())
+#print('d_.keys()=\n',d_.keys())
+
+
+#def grad_check(x,lab,params,g,g_d,dv=1e-5):
+#def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 #(params,params_init,g,g_d)=init_params()
 #def batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=0,isl2grad=1):
 #(params,lre)=batch_train(params,g,g_d,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=0,isl2grad=1)
