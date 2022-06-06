@@ -15,7 +15,7 @@ import copy
 
 #(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,1,28,28,3,2,4)
 #(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,2,28,28,3,2,4)
-(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,8,2,28,28,3,2,10)
+(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,28,28,3,2,10)
 np.random.seed(0)
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -125,6 +125,13 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 			Ci_1=im2col(Ai_1,ki.shape[-1])
 			if pname=='C'+str(i-1): Ci_1=opin
 			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
+			print('fp: A%s.shape='%(i-1),Ai_1.shape)
+			print('fp: Z%s.shape='%i,Zi.shape)
+			Ai_1_c1=np.einsum('bchw->bhw',Ai_1)
+			print('fp: bf A%s_c1.shape='%(i-1),Ai_1_c1.shape)
+			Ai_1_c1=np.expand_dims(Ai_1_c1,1)
+			print('fp: af A%s_c1.shape='%(i-1),Ai_1_c1.shape)
+			Zi=Zi+Ai_1_c1
 			if pname=='Z'+str(i) : Zi=opin
 			if Zi.shape[-1]>=km*minhw and Zi.shape[-2]>=km*minhw: 
 				Mi,ZdMi=maxpooling(Zi,km)
@@ -546,29 +553,28 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 	return params
 
 
-#(imba,imh,imw,lays,convk)=(2,4,5,2,3)
 #ch=2
-#nn=2
-#lab=mnist.train_lab[nn:nn+imba]
+nn=2
+lab=mnist.train_lab[nn:nn+imba]
 #x=mnist.train_img[0:imba]
 #x=np.expand_dims(x,1)
 #x=np.random.randn(imba,1,imh,imw)
-#x=np.random.randn(imba,1,imh,imw)*100
+x=np.random.randn(imba,1,imh,imw)*100
 #i=2
 #grad_check(x,lab,params,g,g_d)
 #grad_check2(x,lab,params,g,g_d,pname='M'+str(i),dv=1e-5)
 #grad_check2(x,lab,params,g,g_d,pname='Z'+str(i),dv=1e-5)
 #grad_check2(x,lab,params,g,g_d,pname='ZdM'+str(i),dv=1e-5)
-#yfp,op=fp(x,params,g,isop=1)
+yfp,op=fp(x,params,g,isop=1)
 #ybp,d_=bp(x,lab,params,g,g_d,isop=1)
 #print('"d_[ZdM%s]=\n'%i,d_['ZdM'+str(i)].squeeze())
 #print('op[ZdM%s]=\n'%i,op['ZdM'+str(i)].squeeze())
 #print('op[Z%s]=\n'%i,op['Z'+str(i)].squeeze())
 
 
-#print('params.keys()=\n',params.keys())
+print('params.keys()=\n',params.keys())
 #for k,v in params.items(): print('%s.shape='%k,v.shape)
-#print('op.keys()=\n',op.keys())
+print('op.keys()=\n',op.keys())
 #print('d_.keys()=\n',d_.keys())
 
 
