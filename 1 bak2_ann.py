@@ -129,26 +129,34 @@ def fco(Ai_1,wi,d_Yi=None):
 		d_wi=np.einsum('bchw,bpoq->bochw',Ai_1,d_Yi)
 		return Yi,d_Ai_1,d_wi
 	else: return Yi
-def norm(Z,gama,beta,d_Y=None):
-	u=Z.mean((-2,-1),keepdims=1)
-	v=Z.mean((-2,-1),keepdims=1)
+def norm(Zi,gamai,betai,d_Yi=None):
+	ui=Zi.mean((-2,-1),keepdims=1)
+	vi=Zi.var((-2,-1),keepdims=1)
 	e=1e-8
-	X=(Z-u)/(v+e)**0.5
-	Y=gama*X+beta
-	if d_Y is not None:
-		d_X=gama*d_Y
-		XX=np.einsum('bcij,bckl->bcijkl',X,X)
+	Xi=(Zi-ui)/(vi+e)**0.5
+	Yi=gamai*Xi+betai
+#	print('norm: ===========')
+#	print('norm: gamai=\n',gamai.squeeze())
+#	print('norm: betai=\n',betai.squeeze())
+#	print('norm: ui=\n',ui.squeeze())
+#	print('norm: vi=\n',vi.squeeze())
+#	print('norm: Zi=\n',Zi.squeeze())
+#	print('norm: Xi=\n',Xi.squeeze())
+#	print('norm: Yi=\n',Yi.squeeze())
+	if d_Yi is not None:
+		d_Xi=gamai*d_Yi
+		XX=np.einsum('bcij,bckl->bcijkl',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
 		mm=XX.shape[-2]*XX.shape[-1]
 		np.einsum('bcijij->bcij',mmE)[:]=mm
-		vmm=np.expand_dims(v,(-2,-1))
-		dX_Z=(mmE-Imm-XX)/(mm*(vmm+e)**0.5)
-		d_Z=np.einsum('bcijkl,bckl->bcij',dX_Z,d_X)
-		d_gama=(d_Y*X).sum((-2,-1),keepdims=1)
-		d_beta=(d_Y).sum((-2,-1),keepdims=1)
-		return Y,d_Z,d_gama,d_beta
-	else: return Y
+		vmm=np.expand_dims(vi,(-2,-1))
+		dXi_Zi=(mmE-Imm-XX)/(mm*(vmm+e)**0.5)
+		d_Zi=np.einsum('bcijkl,bckl->bcij',dXi_Zi,d_Xi)
+		d_gamai=(d_Yi*Xi).sum((-2,-1),keepdims=1)
+		d_betai=(d_Yi).sum((-2,-1),keepdims=1)
+		return Yi,d_Zi,d_gamai,d_betai
+	else: return Yi
 def Relu(Y,d_A=None):
 	e=1e-12
 	A=Y.copy()
@@ -158,111 +166,6 @@ def Relu(Y,d_A=None):
 		d_Y[d_Y>0]=1
 		return A,d_Y
 	else: return A
-## ==========
-## ==========
-def fpbp(X,LAB,params,g,g_d,e=1e-8,isop=0):
-	(Y,OP)=fp(X,params,g,isop=1)
-	ba=Y.shape[0]
-	YL=np.zeros(Y.shape)
-	YL[np.arange(ba),0,LAB.reshape(ba),0]=1
-	(l,d_,grad)=(int(len(params)/3)+1,{},{})
-	for i in range(l-1,-1,-1):
-		if i==l-1: 
-			wi=params['w'+str(i)]
-			Ai_1=OP['A'+str(i-1)]
-			d_Yi=Y-YL
-			d_Ai_1=np.einsum('bpoq,ochw->bchw',d_Yi,wi)
-			d_wi=np.einsum('bchw,bpoq->bochw',Ai_1,d_Yi)
-			grad['d_w'+str(i)]=d_wi.mean(0)
-			d_['Y'+str(i)]=d_Yi
-		else:
-			ki=params['k'+str(i)]
-			gamai=params['gama'+str(i)]
-			betai=params['beta'+str(i)]
-			ui=OP['u'+str(i)]
-			vi=OP['v'+str(i)]
-			Xi=OP['X'+str(i)]
-			Ci_1=OP['C'+str(i-1)]
-			d_Yi=d_['Y'+str(i)]
-			d_Xi=gamai*d_Yi
-			d_gamai=(d_Yi*Xi).sum((-2,-1),keepdims=1)
-			d_betai=(d_Yi).sum((-2,-1),keepdims=1)
-			grad['d_gama'+str(i)]=d_gamai.mean(0)
-			grad['d_beta'+str(i)]=d_betai.mean(0)
-			XX=np.einsum('bcij,bckl->bcijkl',Xi,Xi)
-			Imm=np.ones((XX.shape))
-			mmE=np.zeros((XX.shape))
-			np.einsum('bcijij->bcij',mmE)[:]=mmE.shape[-2]*mmE.shape[-1]
-			vi=np.expand_dims(vi,(-2,-1))
-			dXi_Mi=(mmE-Imm-XX)/(mmE.shape[-2]*mmE.shape[-1]*(vi+e)**0.5)
-			d_Mi=np.einsum('bcijkl,bckl->bcij',dXi_Mi,d_Xi)
-			ZdMi=OP['ZdM'+str(i)]
-			Zi=OP['Z'+str(i)]
-			if Zi.shape[-1]>=km*minhw and Zi.shape[-2]>=km*minhw: 
-				d_Zi=maxpooling_d(d_Mi,ZdMi)
-			else:
-				d_Zi=d_Mi
-			ki_fl=np.flip(ki,(-2,-1))
-			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
-			d_Ai_1_tmp=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
-			d_Zi_m2c=d_Zi.sum(1,keepdims=1)
-#			d_Zi_m2c=np.einsum('bmhw->bhw',d_Zi)
-#			d_Zi_m2c=np.expand_dims(d_Zi_m2c,1)
-			d_Ai_1=d_Ai_1_tmp+d_Zi_m2c
-			d_Zi=np.pad(d_Zi,((0,0),(0,0),(0,Ci_1.shape[2]-d_Zi.shape[2]),(0,Ci_1.shape[3]-d_Zi.shape[3])))
-			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
-			grad['d_k'+str(i)]=d_ki.mean(0)
-			if isop!=0:
-				d_['X'+str(i)]=d_Xi
-				d_['M'+str(i)]=d_Mi
-				d_['ZdM'+str(i)]=ZdMi
-				d_['Z'+str(i)]=d_Zi
-				d_['Z'+str(i)+'_2col']=d_Zi_2col
-				d_['A'+str(i-1)]=d_Ai_1
-		if i>=1:
-			Yi_1=OP['Y'+str(i-1)]
-			d_Ai_1=np.pad(d_Ai_1,((0,0),(0,0),(0,Yi_1.shape[2]-d_Ai_1.shape[2]),(0,Yi_1.shape[3]-d_Ai_1.shape[3])))
-			d_Yi_1=g_d[i-1](Yi_1)*d_Ai_1
-			d_['Y'+str(i-1)]=d_Yi_1
-	if isop!=0: 
-		return (grad,d_)
-	else: 
-		return grad
-def fpbp2(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
-	Y,OP=fp(X,params,g,isop=1)
-	ba=X.shape[0]
-	(l,OP)=(int(len(params)/3)+1,{})
-	OP['A-1']=X
-	for i in range(l) :
-		Ai_1=OP['A'+str(i-1)]
-		if i<l-1:
-			Ai,d_Yi=Relu(Yi,d_A=d_Ai)
-			ki=params['k'+str(i)]
-			Zi,d_Ai_1=conv(Ai_1,ki,d_Zi=d_Zi)
-			gamai=params['gama'+str(i)]
-			betai=params['beta'+str(i)]
-			Yi,d_Zi=norm(Zi,gamai,betai,d_Y=d_Yi)
-		else:
-			wi=params['w'+str(i)]
-			Yi,d_Ai_1=fco(Ai_1,wi,d_Y=d_Yi)
-			Ai=softmax(Yi)
-			Y=Ai
-		OP['C'+str(i-1)]=Ci_1
-		OP['Z'+str(i)]=Zi
-		OP['ZdM'+str(i)]=ZdMi
-		OP['M'+str(i)]=Mi
-		OP['u'+str(i)]=ui
-		OP['v'+str(i)]=vi
-		OP['X'+str(i)]=Xi
-		OP['Y'+str(i)]=Yi
-		OP['A'+str(i)]=Ai
-	Y=OP['A'+str(l-1)]
-	if isop==0: 
-		return Y
-	else: 
-		return (Y,OP)
-
-
 ## ==========
 def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 	ba=X.shape[0]
@@ -277,29 +180,39 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			Yi=norm(Zi,gamai,betai)
+#			print('fp: gama%s=\n'%i,gamai.squeeze())
+#			print('fp: beta%s=\n'%i,betai.squeeze())
+#			print('fp: Z%s=\n'%i,Zi.squeeze())
+#			print('fp: Y%s=\n'%i,Yi.squeeze())
 		else:
 			wi=params['w'+str(i)]
 			Yi=fco(Ai_1,wi)
+#			print('fp: A%s=\n'%(i-1),Ai_1.squeeze())
+#			print('fp: Y%s=\n'%i,Yi.squeeze())
 		Ai=g[i](Yi)
 		OP['Z'+str(i)]=Zi
 		OP['Y'+str(i)]=Yi
 		OP['A'+str(i)]=Ai
 	Y=OP['A'+str(l-1)]
+#	print('fp: Y=\n',Y.squeeze())
 	if isop!=0:	return Y,OP
 	else:	return Y
 
 ## ==========
 def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 	(Y,OP)=fp(X,params,g,isop=1)
+	print('bp: Y=\n',Y)
 	ba=Y.shape[0]
 	YL=np.zeros(Y.shape)
 	YL[np.arange(ba),0,LAB.reshape(ba),0]=1
+	print('bp: YL=\n',YL)
 	(l,d_,grad)=(int(len(params)/3)+1,{},{})
 	for i in range(l-1,-1,-1):
 		Ai_1=OP['A'+str(i-1)]
 		if i==l-1: 
 			wi=params['w'+str(i)]
 			d_Yi=Y-YL
+			print('bp: d_Y%s='%i,d_Yi)
 			Yi,d_Ai_1,d_wi=fco(Ai_1,wi,d_Yi=d_Yi)
 			grad['d_w'+str(i)]=d_wi.mean(0)
 			d_['Y'+str(i)]=d_Yi
@@ -308,7 +221,7 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
 			d_Yi=d_['Y'+str(i)]
-			Yi,d_Zi,d_gamai,d_betai=norm(Zi,gamai,betai,d_Y=d_Yi)
+			Yi,d_Zi,d_gamai,d_betai=norm(Zi,gamai,betai,d_Yi=d_Yi)
 			ki=params['k'+str(i)]
 			Zi,d_Ai_1,d_ki=conv(Ai_1,ki,d_Zi=d_Zi)
 			grad['d_gama'+str(i)]=d_gamai.mean(0)

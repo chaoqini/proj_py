@@ -16,6 +16,7 @@ import copy
 #(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,1,28,28,3,2,4)
 #(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,2,28,28,3,2,4)
 (lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,28,28,3,2,10)
+#(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,8,8,3,2,8)
 np.random.seed(0)
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -56,16 +57,34 @@ def cross_entropy(x,lab,params,g,isvalid=0):
 		correct=(np.argmax(y,-2)==np.argmax(yl,-2))
 		valid_per=correct.sum()/len(correct)
 		return (cost,valid_per,correct)
+
 def im2col(im,k=3,s=1,pad=1):
-    p=int(k/2)
-    (ba,c,h,w)=im.shape
-    if pad==1: imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
-    else: imp=im
-    (ba,c,hp,wp)=imp.shape
-    strd=(c*hp*wp,hp*wp,wp*s,s,wp,1)
-    strd=(i*imp.itemsize for i in strd)
-    col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,int((hp-k)/s)+1,int((wp-k)/s)+1,k,k),strides=strd)
-    return col
+		if k==1: col=np.expand_dims(im,(-2,-1))
+		else:
+			p=int(k/2)
+			(ba,c,h,w)=im.shape
+			if pad==1: imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
+			else: imp=im
+			(ba,c,hp,wp)=imp.shape
+			strd=(c*hp*wp,hp*wp,wp*s,s,wp,1)
+			strd=(i*imp.itemsize for i in strd)
+			col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,int((hp-k)/s)+1,int((wp-k)/s)+1,k,k),strides=strd)
+		return col
+
+#def im2col_idt(im,k=3,s=1,pad=1):
+##		if k==1: col=np.expand_dims(im,(-2,-1))
+##		else:
+#			p=int(k/2)
+#			(ba,c,h,w)=im.shape
+#			if pad==1: imp=np.pad(im,((0,0),(0,0),(p,p),(p,p)))
+#			else: imp=im
+#			(ba,c,hp,wp)=imp.shape
+#			strd=(c*hp*wp,hp*wp,wp*s,s,wp,1)
+#			strd=(i*imp.itemsize for i in strd)
+#			col=np.lib.stride_tricks.as_strided(imp,shape=(ba,c,int((hp-k)/s)+1,int((wp-k)/s)+1,k,k),strides=strd)
+#			im_idt=np.expand_dims(im,(-2,-1))
+#			col=col+im_idt
+#    return col
 
 
 #def init_params(lays=lays,k=convk,nh=imh,nw=imw,nk=2,ny=10,func=0,seed=0):
@@ -124,14 +143,10 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 			ki=params['k'+str(i)]
 			Ci_1=im2col(Ai_1,ki.shape[-1])
 			if pname=='C'+str(i-1): Ci_1=opin
-			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
-			print('fp: A%s.shape='%(i-1),Ai_1.shape)
-			print('fp: Z%s.shape='%i,Zi.shape)
-			Ai_1_c1=np.einsum('bchw->bhw',Ai_1)
-			print('fp: bf A%s_c1.shape='%(i-1),Ai_1_c1.shape)
-			Ai_1_c1=np.expand_dims(Ai_1_c1,1)
-			print('fp: af A%s_c1.shape='%(i-1),Ai_1_c1.shape)
-			Zi=Zi+Ai_1_c1
+			Zi_tmp=np.einsum('bchwij,mcij->bmchw',Ci_1,ki)
+			Ai_1_idt=np.expand_dims(Ai_1,1)
+			Zi_tmp=Zi_tmp+Ai_1_idt
+			Zi=np.einsum('bmchw->bmhw',Zi_tmp)
 			if pname=='Z'+str(i) : Zi=opin
 			if Zi.shape[-1]>=km*minhw and Zi.shape[-2]>=km*minhw: 
 				Mi,ZdMi=maxpooling(Zi,km)
@@ -209,7 +224,11 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 				d_Zi=d_Mi
 			ki_fl=np.flip(ki,(-2,-1))
 			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
-			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+			d_Ai_1_tmp=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+			d_Zi_m2c=d_Zi.sum(1,keepdims=1)
+#			d_Zi_m2c=np.einsum('bmhw->bhw',d_Zi)
+#			d_Zi_m2c=np.expand_dims(d_Zi_m2c,1)
+			d_Ai_1=d_Ai_1_tmp+d_Zi_m2c
 			d_Zi=np.pad(d_Zi,((0,0),(0,0),(0,Ci_1.shape[2]-d_Zi.shape[2]),(0,Ci_1.shape[3]-d_Zi.shape[3])))
 			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
 			grad['d_k'+str(i)]=d_ki.mean(0)
@@ -554,27 +573,27 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 
 
 #ch=2
-nn=2
-lab=mnist.train_lab[nn:nn+imba]
+#nn=2
+#lab=mnist.train_lab[nn:nn+imba]
 #x=mnist.train_img[0:imba]
 #x=np.expand_dims(x,1)
 #x=np.random.randn(imba,1,imh,imw)
-x=np.random.randn(imba,1,imh,imw)*100
+#x=np.random.randn(imba,1,imh,imw)*100
 #i=2
 #grad_check(x,lab,params,g,g_d)
 #grad_check2(x,lab,params,g,g_d,pname='M'+str(i),dv=1e-5)
 #grad_check2(x,lab,params,g,g_d,pname='Z'+str(i),dv=1e-5)
 #grad_check2(x,lab,params,g,g_d,pname='ZdM'+str(i),dv=1e-5)
-yfp,op=fp(x,params,g,isop=1)
+#yfp,op=fp(x,params,g,isop=1)
 #ybp,d_=bp(x,lab,params,g,g_d,isop=1)
 #print('"d_[ZdM%s]=\n'%i,d_['ZdM'+str(i)].squeeze())
 #print('op[ZdM%s]=\n'%i,op['ZdM'+str(i)].squeeze())
 #print('op[Z%s]=\n'%i,op['Z'+str(i)].squeeze())
 
 
-print('params.keys()=\n',params.keys())
+#print('params.keys()=\n',params.keys())
 #for k,v in params.items(): print('%s.shape='%k,v.shape)
-print('op.keys()=\n',op.keys())
+#print('op.keys()=\n',op.keys())
 #print('d_.keys()=\n',d_.keys())
 
 

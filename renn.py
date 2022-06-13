@@ -15,7 +15,9 @@ import copy
 
 #(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,1,28,28,3,2,4)
 #(lays,imba,imch,imh,imw,convk,km,minhw)=(5,2,2,28,28,3,2,4)
-(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,28,28,3,2,10)
+(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,1,2,28,28,3,2,10)
+imchs=[1,]
+#(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,8,8,3,2,8)
 np.random.seed(0)
 ## ==========
 def tanh(x): return np.tanh(x)
@@ -125,6 +127,67 @@ def maxpooling_d(d_m,zdm):
 	strd=(i*d_z_mkk.itemsize for i in strd)
 	d_z=np.lib.stride_tricks.as_strided(d_z_mkk,shape=(ba,c,hp*khp,wp*kwp),strides=strd)
 	return d_z
+
+
+#def conv(Ai_1,ki,d_Zi=None):
+#	Ci_1=im2col(Ai_1,ki.shape[-1])
+#	Zi=np.einsum('bchwij,mcij->bmchw',Ci_1,ki)
+#	ki_fl=np.fliop(ki,(-2,-1))
+#	d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
+#	d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+#	if d_Zi==None: return Zi
+#	else: return Zi,d_Ai_1
+
+
+def fco(Ai_1,wi,d_Y=None):
+  # output Y.shape=(ba,1,out_num,1)
+	Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
+	Y=np.expand_dims(Zi,(1,-1))
+	if d_Y is not None:
+		d_Ai_1=np.einsum('bpoq,ochw->bchw',d_Y,wi)
+		return Y,d_Ai_1
+	else: return Y
+def conv(Ai_1,ki,d_Zi=None):
+    Ci_1=im2col(Ai_1,ki.shape[-1])
+    Zi=np.einsum('bchwij,mcij->bmchw',Ci_1,ki)
+    if d_Zi is not None: 
+        ki_fl=np.flip(ki,(-2,-1))
+        d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
+        d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+        return Zi,d_Ai_1
+    else:	return Zi
+def norm(Z,gama,beta,d_Y=None):
+	u=Z.mean((-2,-1),keepdims=1)
+	v=Z.mean((-2,-1),keepdims=1)
+	e=1e-8
+	X=(Z-u)/(v+e)**0.5
+	Y=gama*X+beta
+	if d_Y is not None:
+		d_X=gama*d_Y
+		XX=np.einsum('bcij,bckl->bcijkl',X,X)
+		Imm=np.ones((XX.shape))
+		mmE=np.zeros((XX.shape))
+		mm=XX.shape[-2]*XX.shape[-1]
+		np.einsum('bcijij->bcij',mmE)[:]=mm
+		vmm=np.expand_dims(v,(-2,-1))
+		dX_Z=(mmE-Imm-XX)/(mm*(vmm+e)**0.5)
+		d_Z=np.einsum('bcijkl,bckl->bcij',dX_Z,d_X)
+		return Y,d_Z
+	else: return Y
+def Relu(Y,d_A=None):
+	e=1e-12
+	A=Y.copy()
+	A[A<1-e]=0
+	if d_A is not None:
+		d_Y=d_A.copy()
+		d_Y[d_Y>0]=1
+		return A,d_Y
+	else: return A
+	
+	
+
+
+
 ## ==========
 def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 	ba=X.shape[0]
@@ -142,22 +205,10 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 			ki=params['k'+str(i)]
 			Ci_1=im2col(Ai_1,ki.shape[-1])
 			if pname=='C'+str(i-1): Ci_1=opin
-#			Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
 			Zi_tmp=np.einsum('bchwij,mcij->bmchw',Ci_1,ki)
-			print('fp: A%s.shape='%(i-1),Ai_1.shape)
-			print('fp: Z%s_tmp.shape='%i,Zi_tmp.shape)
-#			Ai_1_c1=np.einsum('bchw->bhw',Ai_1)
-#			print('fp: bf A%s_c1.shape='%(i-1),Ai_1_c1.shape)
-#			Ai_1_c1=np.expand_dims(Ai_1_c1,1)
-#			print('fp: af A%s_c1.shape='%(i-1),Ai_1_c1.shape)
-#			print('fp: bf A%s_idt.shape='%(i-1),Ai_1_idt.shape)
 			Ai_1_idt=np.expand_dims(Ai_1,1)
-			print('fp: A%s_idt.shape='%(i-1),Ai_1_idt.shape)
-#			print('fp: bf Z%s_tmp.shape='%i,Zi_tmp.shape)
 			Zi_tmp=Zi_tmp+Ai_1_idt
-			print('fp: af Z%s_tmp.shape='%i,Zi_tmp.shape)
 			Zi=np.einsum('bmchw->bmhw',Zi_tmp)
-			print('fp: af Z%s.shape='%i,Zi.shape)
 			if pname=='Z'+str(i) : Zi=opin
 			if Zi.shape[-1]>=km*minhw and Zi.shape[-2]>=km*minhw: 
 				Mi,ZdMi=maxpooling(Zi,km)
@@ -235,7 +286,11 @@ def bp(X,LAB,params,g,g_d,e=1e-8,isop=0):
 				d_Zi=d_Mi
 			ki_fl=np.flip(ki,(-2,-1))
 			d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
-			d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+			d_Ai_1_tmp=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+			d_Zi_m2c=d_Zi.sum(1,keepdims=1)
+#			d_Zi_m2c=np.einsum('bmhw->bhw',d_Zi)
+#			d_Zi_m2c=np.expand_dims(d_Zi_m2c,1)
+			d_Ai_1=d_Ai_1_tmp+d_Zi_m2c
 			d_Zi=np.pad(d_Zi,((0,0),(0,0),(0,Ci_1.shape[2]-d_Zi.shape[2]),(0,Ci_1.shape[3]-d_Zi.shape[3])))
 			d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
 			grad['d_k'+str(i)]=d_ki.mean(0)
@@ -580,27 +635,27 @@ def hyperparams_test(params,params_init,g,g_d,nloop=8,lr0=2e-3,klr=0.9995,batch=
 
 
 #ch=2
-nn=2
-lab=mnist.train_lab[nn:nn+imba]
+#nn=2
+#lab=mnist.train_lab[nn:nn+imba]
 #x=mnist.train_img[0:imba]
 #x=np.expand_dims(x,1)
 #x=np.random.randn(imba,1,imh,imw)
-x=np.random.randn(imba,1,imh,imw)*100
+#x=np.random.randn(imba,1,imh,imw)*100
 #i=2
 #grad_check(x,lab,params,g,g_d)
 #grad_check2(x,lab,params,g,g_d,pname='M'+str(i),dv=1e-5)
 #grad_check2(x,lab,params,g,g_d,pname='Z'+str(i),dv=1e-5)
 #grad_check2(x,lab,params,g,g_d,pname='ZdM'+str(i),dv=1e-5)
-yfp,op=fp(x,params,g,isop=1)
+#yfp,op=fp(x,params,g,isop=1)
 #ybp,d_=bp(x,lab,params,g,g_d,isop=1)
 #print('"d_[ZdM%s]=\n'%i,d_['ZdM'+str(i)].squeeze())
 #print('op[ZdM%s]=\n'%i,op['ZdM'+str(i)].squeeze())
 #print('op[Z%s]=\n'%i,op['Z'+str(i)].squeeze())
 
 
-print('params.keys()=\n',params.keys())
+#print('params.keys()=\n',params.keys())
 #for k,v in params.items(): print('%s.shape='%k,v.shape)
-print('op.keys()=\n',op.keys())
+#print('op.keys()=\n',op.keys())
 #print('d_.keys()=\n',d_.keys())
 
 
