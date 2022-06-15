@@ -22,15 +22,16 @@ import copy
 #(lays,imba,imchin,dimch,imh,imw,convk,km,minhw)=(5,2,2,2,8,8,3,2,8)
 np.random.seed(0)
 ## ==========
-def Relu(Y,d_A=None):
-	A=Y.copy()
-	A[A<=0]=0
-	if d_A is not None:
-		dA_dY=A.copy()
-		dA_dY[dA_dY>0]=1
-		d_Y=dA_dY*d_A
-		return A,d_Y
-	else: return A
+def Relu(Yi,d_Ai=None,Ai=None):
+	if d_Ai is not None:
+		if Ai is None: Ai=Yi.copy(); Ai[Ai<=0]=0
+		dAi_dYi=Ai.copy()
+		dAi_dYi[dAi_dYi>0]=1
+		d_Yi=dAi_dYi*d_Ai
+		return d_Yi
+	else: 
+		Ai=Yi.copy(); Ai[Ai<=0]=0
+		return Ai
 def softmax(x): 
 	xmax=np.max(x,(-2,-1),keepdims=1)
 	exp=np.exp(x-xmax)
@@ -53,7 +54,7 @@ def cross_entropy(x,lab,params,g,isvalid=0):
 
 #def init_params(lays=lays,k=convk,nh=imh,nw=imw,nk=2,ny=10,func=0,seed=0):
 def init_params(lays=lays,k=convk,imchin=imchin,dimch=dimch,imh=imh,imw=imw,ch=-1,func=None):
-	if func==None: func=Relu
+	if func is None: func=Relu
 	if ch==-1:
 		ch=[1]
 		for i in range(lays-1):ch.append(imchin+dimch*i)
@@ -102,32 +103,37 @@ def maxpooling(Z,k=2,d_M=None):
 		d_Z=np.lib.stride_tricks.as_strided(d_Z_Mkk,shape=(ba,c,hp*khp,wp*kwp),strides=strd)
 		return M,d_Z
 	else: return M
-def conv(Ai_1,ki,d_Zi=None):
-	Ci_1=im2col(Ai_1,ki.shape[-1])
-	Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
+## ==========
+def fco(Ai_1,wi,d_Zi=None):
+	if d_Zi is not None:
+		d_Ai_1=np.einsum('bpoq,ochw->bchw',d_Zi,wi)
+		d_wi=np.einsum('bchw,bpoq->bochw',Ai_1,d_Zi)
+		return d_Ai_1,d_wi
+	else: 
+		Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
+		Zi=np.expand_dims(Zi,(1,-1))
+		return Zi
+## ==========
+def conv(Ai_1,ki,d_Zi=None,Ci_1=None):
 	if d_Zi is not None: 
 		ki_fl=np.flip(ki,(-2,-1))
 		d_Zi_2col=im2col(d_Zi,ki_fl.shape[-1])
 		d_Ai_1=np.einsum('bmhwij,mcij->bchw',d_Zi_2col,ki_fl)
+		if Ci_1 is None: Ci_1=im2col(Ai_1,ki.shape[-1])
 		d_ki=np.einsum('bchwij,bmhw->bmcij',Ci_1,d_Zi)
-		return Zi,d_Ai_1,d_ki
-	else:	return Zi
-def fco(Ai_1,wi,d_Zi=None):
-	Zi=np.einsum('bchw,ochw->bo',Ai_1,wi)
-	Zi=np.expand_dims(Zi,(1,-1))
-	if d_Zi is not None:
-		d_Ai_1=np.einsum('bpoq,ochw->bchw',d_Zi,wi)
-		d_wi=np.einsum('bchw,bpoq->bochw',Ai_1,d_Zi)
-		return Zi,d_Ai_1,d_wi
-	else: return Zi
-def norm(Zi,gamai,betai,d_Yi=None):
+		return d_Ai_1,d_ki
+	else:	
+		Ci_1=im2col(Ai_1,ki.shape[-1])
+		Zi=np.einsum('bchwij,mcij->bmhw',Ci_1,ki)
+		return Zi,Ci_1
+## ==========
+def norm(Zi,gamai,betai,d_Yi=None,Xi=None):
+	e=1e-8
 	ui=Zi.mean((-2,-1),keepdims=1)
 	vi=Zi.var((-2,-1),keepdims=1)
-	e=1e-8
-	Xi=(Zi-ui)/(vi+e)**0.5
-	Yi=gamai*Xi+betai
 	if d_Yi is not None:
 		d_Xi=gamai*d_Yi
+		if Xi is None: Xi=(Zi-ui)/(vi+e)**0.5
 		XX=np.einsum('bcij,bckl->bcijkl',Xi,Xi)
 		Imm=np.ones((XX.shape))
 		mmE=np.zeros((XX.shape))
@@ -138,10 +144,14 @@ def norm(Zi,gamai,betai,d_Yi=None):
 		d_Zi=np.einsum('bcijkl,bckl->bcij',dXi_dZi,d_Xi)
 		d_gamai=(d_Yi*Xi).sum((-2,-1),keepdims=1)
 		d_betai=(d_Yi).sum((-2,-1),keepdims=1)
-		return Yi,d_Zi,d_gamai,d_betai
-	else: return Yi
+		return d_Zi,d_gamai,d_betai
+	else: 
+		Xi=(Zi-ui)/(vi+e)**0.5
+		Yi=gamai*Xi+betai
+		return Yi,Xi
 ## ==========
 def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
+#	print('fp begin..')
 	ba=X.shape[0]
 	(l,OP)=(int(len(params)/3)+1,{})
 	OP['A-1']=X
@@ -150,10 +160,12 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 		if i<l-1:
 			ki=params['k'+str(i)]
 			if pname=='A'+str(i-1): Ai_1=opin
-			Zi=conv(Ai_1,ki)
+			Zi,Ci_1=conv(Ai_1,ki)
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
-			Yi=norm(Zi,gamai,betai)
+			Yi,Xi=norm(Zi,gamai,betai)
+			OP['C'+str(i-1)]=Ci_1
+			OP['X'+str(i)]=Xi
 		else:
 			wi=params['w'+str(i)]
 			if pname=='A'+str(i-1): Ai_1=opin
@@ -165,12 +177,13 @@ def fp(X,params,g,opin=None,pname=None,isop=0,e=1e-8):
 		OP['Y'+str(i)]=Yi
 		OP['A'+str(i)]=Ai
 	Y=OP['A'+str(l-1)]
-#	print('fp: Y=\n',Y.squeeze())
+#	print('fp end..')
 	if isop!=0:	return Y,OP
 	else:	return Y
 
 ## ==========
 def bp(X,LAB,params,g,e=1e-8,isop=0):
+#	print('bp begin..')
 	(Y,OP)=fp(X,params,g,isop=1)
 	ba=Y.shape[0]
 	YL=np.zeros(Y.shape)
@@ -182,26 +195,30 @@ def bp(X,LAB,params,g,e=1e-8,isop=0):
 			wi=params['w'+str(i)]
 			d_Yi=Y-YL
 			d_Zi=d_Yi
-			Zi,d_Ai_1,d_wi=fco(Ai_1,wi,d_Zi=d_Zi)
+			d_Ai_1,d_wi=fco(Ai_1,wi,d_Zi=d_Zi)
 			grad['d_w'+str(i)]=d_wi.mean(0)
-			d_['Y'+str(i)]=d_Yi
 		else:
-			Zi=OP['Z'+str(i)]
+			ki=params['k'+str(i)]
 			gamai=params['gama'+str(i)]
 			betai=params['beta'+str(i)]
+			Zi=OP['Z'+str(i)]
+			Xi=OP['X'+str(i)]
 			d_Yi=d_['Y'+str(i)]
-			Yi,d_Zi,d_gamai,d_betai=norm(Zi,gamai,betai,d_Yi=d_Yi)
-			ki=params['k'+str(i)]
-			Zi,d_Ai_1,d_ki=conv(Ai_1,ki,d_Zi=d_Zi)
+			d_Zi,d_gamai,d_betai=norm(Zi,gamai,betai,d_Yi=d_Yi,Xi=Xi)
+			Ci_1=OP['C'+str(i-1)]
+			d_Ai_1,d_ki=conv(Ai_1,ki,d_Zi=d_Zi,Ci_1=Ci_1)
 			grad['d_gama'+str(i)]=d_gamai.mean(0)
 			grad['d_beta'+str(i)]=d_betai.mean(0)
 			grad['d_k'+str(i)]=d_ki.mean(0)
 		if i>=1:
-			Yi_1=OP['Y'+str(i-1)]
-			Ai_1,d_Yi_1=Relu(Yi_1,d_A=d_Ai_1)
-			d_['A'+str(i-1)]=d_Ai_1
-			d_['Y'+str(i-1)]=d_Yi_1
+			d_['Y'+str(i)]=d_Yi
 			d_['Z'+str(i)]=d_Zi
+			d_['A'+str(i-1)]=d_Ai_1
+			Yi_1=OP['Y'+str(i-1)]
+			Ai_1=OP['A'+str(i-1)]
+			d_Yi_1=Relu(Yi_1,d_Ai=d_Ai_1,Ai=Ai_1)
+			d_['Y'+str(i-1)]=d_Yi_1
+#	print('bp end..')
 	if isop!=0:	return (grad,d_)
 	else: return grad
 	
@@ -330,12 +347,17 @@ def batch_train(params,g,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=
 	(cost,valid_per,correct,lra)=([],[],[],[])
 	print('Training bath running ...')
 	for i in range(len(X)):
-		pn=i%(max(int(len(X)/10),1))
+		pn=i%(max(int(len(X)/2),1))
+#		pn=i%(max(int(len(X)/10),1))
 		if pn==0 or i==len(X)-1:
 			print('Training iteration number = %s/%s'%(i,len(X)))
 #		Xi=np.expand_dims(X[i],-1)
 #		LABi=np.expand_dims(LAB[i],-1)
+		t0=time.time()
+#		print('%s bp begin time is:'%i,tb)
 		grad=bp(X[i],LAB[i],params,g)
+		t1=time.time()
+		print('%s bp detal time dt1= %0.2fs'%(i,t1-t0))
 		lr=lr0*klr**i
 		lra.append(lr)
 		if i==0: (v,s)=init_adam(params)
@@ -344,6 +366,8 @@ def batch_train(params,g,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=
 		cost.append(cost_i)
 		valid_per.append(valid_per_i)
 		correct.append(correct_i)
+		t2=time.time()
+		print('%s bp detal time dt2= %0.2fs'%(i,t2-t1))
 #		if isl2grad==1:
 #			for (kt,vt) in grad.items():
 #				l2=np.linalg.norm(vt)/vt.size
@@ -357,6 +381,8 @@ def batch_train(params,g,lr0=2e-3,klr=0.9995,batch=32,batches=0,isplot=0,istime=
 	valid_per=np.array(valid_per)
 	correct=np.array(correct)
 	lra=np.array(lra)
+	t3=time.time()
+	print('%s bp detal time dt3= %0.2fs'%(i,t3-t2))
 #	 cost=np.array(cost)[50:-1]
 	if isplot!=0:
 		plt.figure()

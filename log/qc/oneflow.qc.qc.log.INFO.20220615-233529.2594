@@ -1,0 +1,7 @@
+Log file created at: 2022/06/15 23:35:29
+Running on machine: qc
+Running duration (h:mm:ss): 0:00:00
+Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu threadid file:line] msg
+I20220615 23:35:29.860945  2594 env_global_objects_scope.cpp:159] Using rpc backend: local
+W20220615 23:35:29.861285  2594 cuda_device_descriptor_class.cpp:48] CUDA driver version is insufficient for CUDA runtime version
+I20220615 23:35:29.906569  2594 epoll_comm_network.cpp:63] CommNet:Epoll listening on 0.0.0.0:33999
